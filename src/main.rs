@@ -47,7 +47,18 @@ fn main() {
     } else if let Some(target) = args.flag_add {
         add_target(target)
     } else if let Some(target) = args.flag_target {
-        run_target(target)
+        let result = run_target(target);
+        if let Ok(success) = result {
+            if success {
+                // Can this ever happen?
+                Ok(())
+            } else {
+                println!("Fuzzing found errors!");
+                process::exit(-1)
+            }
+        } else {
+            result.map(|_| ())
+        }
     } else {
         println!("Invalid arguments. Usage:\n{}", USAGE);
         return;
@@ -76,19 +87,20 @@ name = "{0}-fuzz"
 version = "0.0.1"
 authors = ["Automatically generated"]
 
-[build]
-rustflags = "-Cpasses=sancov -Cllvm-args=-sanitizer-coverage-level=3 -Zsanitizer=address -Cpanic=abort"
-
 [dependencies.{0}]
 path = ".."
-
-[dependencies.fuzzer-sys]
-git = "https://github.com/rust-fuzz/libfuzzer-sys.git"
 
 [[bin]]
 name = "fuzzer_script_1"
 path = "fuzzers/fuzzer_script_1.rs"
 "#, me.name)?;
+
+    let mut ignore = fs::File::create(path::Path::new("./fuzz/.gitignore"))?;
+
+write!(ignore, r#"
+target
+libfuzzer
+"#)?;
 
     let mut script = fs::File::create(path::Path::new("./fuzz/fuzzers/fuzzer_script_1.rs"))?;
     dummy_target(&mut script)
@@ -121,13 +133,55 @@ path = "fuzzers/{0}.rs"
 
 }
 
-fn run_target(target: String) -> io::Result<()> {
-    env::set_current_dir("./fuzz")?;
+fn rebuild_libfuzzer() -> io::Result<()> {
+    if let Err(_) = env::set_current_dir("./libfuzzer") {
+        let mut git = process::Command::new("git");
+        let mut cmd = git.arg("clone")
+                         .arg("https://github.com/rust-fuzz/libfuzzer-sys.git")
+                         .arg("libfuzzer");
+        let result = cmd.spawn()?.wait()?;
+        if !result.success() {
+            return Err(io::Error::new(io::ErrorKind::Other,
+                                      "Failed to clone libfuzzer-sys"))
+        }
+        env::set_current_dir("./libfuzzer")?;
+    }
     let mut cmd = process::Command::new("cargo");
-    cmd.arg("run")
+    cmd.arg("build")
+       .arg("--release")
+       .spawn()?
+       .wait()?;
+
+    let result = cmd.spawn()?.wait()?;
+    if !result.success() {
+        return Err(io::Error::new(io::ErrorKind::Other,
+                                  "Failed to build libfuzzer-sys"))
+    }
+    env::set_current_dir("..")
+}
+
+fn run_target(target: String) -> io::Result<bool> {
+    env::set_current_dir("./fuzz")?;
+    rebuild_libfuzzer()?;
+    let mut cmd = process::Command::new("cargo");
+    cmd.arg("rustc")
        .arg("--verbose")
        .arg("--bin")
        .arg(&target)
-    cmd.spawn()?.wait()?;
-    Ok(())
+       .arg("--")
+       .arg("-L")
+       .arg("libfuzzer/target/release")
+       .env("RUSTFLAGS",
+            "-Cpasses=sancov -Cllvm-args=-sanitizer-coverage-level=3 -Zsanitizer=address -Cpanic=abort");
+
+    let result = cmd.spawn()?.wait()?;
+    if !result.success() {
+        return Err(io::Error::new(io::ErrorKind::Other, "Failed to build fuzz target"))
+    }
+
+    // can't use cargo run since we can't pass -L args to it
+    let path = format!("target/debug/{}", target);
+    let mut run_cmd = process::Command::new(path);
+    let result = run_cmd.spawn()?.wait()?;
+    Ok(result.success())
 }
