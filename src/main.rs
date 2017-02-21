@@ -19,22 +19,22 @@ Cargo Fuzz
 
 Usage:
   cargo fuzz --init
-  cargo fuzz --target TARGET
+  cargo fuzz --fuzz-target TARGET
   cargo fuzz --add TARGET
   cargo fuzz (-h | --help)
 
 Options:
-  -h --help         Show this screen.
-  --init            Initialize fuzz folder
-  --target TARGET   Run with given fuzz target in fuzz/fuzzers
-  --add TARGET      Add a new fuzz target
+  -h --help              Show this screen.
+  --init                 Initialize fuzz folder
+  --fuzz-target TARGET   Run with given fuzz target in fuzz/fuzzers
+  --add TARGET           Add a new fuzz target
 ";
 
 #[derive(Debug, RustcDecodable)]
 struct Args {
     flag_init: bool,
     flag_add: Option<String>,
-    flag_target: Option<String>,
+    flag_fuzz_target: Option<String>,
 }
 
 fn main() {
@@ -46,7 +46,7 @@ fn main() {
         init_fuzz()
     } else if let Some(target) = args.flag_add {
         add_target(target)
-    } else if let Some(target) = args.flag_target {
+    } else if let Some(target) = args.flag_fuzz_target {
         let result = run_target(target);
         if let Ok(success) = result {
             if success {

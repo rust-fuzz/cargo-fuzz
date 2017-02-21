@@ -38,7 +38,7 @@ To fuzz a fuzz target, run:
 
 ```sh
 $ cd /path/to/project
-$ cargo fuzz --target fuzzer_script_1 # or whatever the target is named
+$ cargo fuzz --fuzz-target fuzzer_script_1 # or whatever the target is named
 ```
 
 Then, wait till it finds something!
