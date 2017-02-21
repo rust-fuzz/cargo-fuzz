@@ -3,7 +3,9 @@
 Commandline wrapper for using libFuzzer. Easy to use, no need to recompile LLVM!
 
 
-libFuzzer needs LLVM sanitizer support, so this is Linux-only for now.
+libFuzzer needs LLVM sanitizer support, so this is Linux-only for now. It also
+may not work well with projects that have build scripts due to
+https://github.com/rust-lang/cargo/issues/3739
 
 
 ## Installation
