@@ -93,6 +93,10 @@ authors = ["Automatically generated"]
 [dependencies.{0}]
 path = ".."
 
+# Prevent this from interfering with workspaces
+[workspace]
+members = ["."]
+
 [[bin]]
 name = "fuzzer_script_1"
 path = "fuzzers/fuzzer_script_1.rs"
