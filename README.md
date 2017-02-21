@@ -30,15 +30,15 @@ libFuzzer is going to repeatedly call the `go()` function in the fuzzer script w
 `data` of length `size`, until your program hits an error condition (segfault, panic, etc). Write
 your `go()` function to hit the entry point you need.
 
-You can add more fuzz target scripts via `cargo fuzz --add name_of_script`. There
+You can add more fuzz scripts via `cargo fuzz --add name_of_script`. There
 is a `Cargo.toml` in the `fuzz/` folder where you can add dependencies.
 
 
-To fuzz a fuzz target, run:
+To fuzz a fuzz script, run:
 
 ```sh
 $ cd /path/to/project
-$ cargo fuzz --target fuzzer_script_1 # or whatever the target is named
+$ cargo fuzz --script fuzzer_script_1 # or whatever the script is named
 ```
 
 Then, wait till it finds something!
