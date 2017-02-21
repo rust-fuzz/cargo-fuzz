@@ -19,22 +19,22 @@ Cargo Fuzz
 
 Usage:
   cargo fuzz --init
-  cargo fuzz --script SCRIPT
-  cargo fuzz --add SCRIPT
+  cargo fuzz --fuzz-target TARGET
+  cargo fuzz --add TARGET
   cargo fuzz (-h | --help)
 
 Options:
-  -h --help         Show this screen.
-  --init            Initialize fuzz folder
-  --script SCRIPT   Run with given fuzz script in fuzz/fuzzers
-  --add SCRIPT      Add a new fuzz script
+  -h --help              Show this screen.
+  --init                 Initialize fuzz folder
+  --fuzz-target TARGET   Run with given fuzz target in fuzz/fuzzers
+  --add TARGET           Add a new fuzz target
 ";
 
 #[derive(Debug, RustcDecodable)]
 struct Args {
     flag_init: bool,
     flag_add: Option<String>,
-    flag_script: Option<String>,
+    flag_fuzz_target: Option<String>,
 }
 
 fn main() {
@@ -44,10 +44,10 @@ fn main() {
 
     let result = if args.flag_init {
         init_fuzz()
-    } else if let Some(script) = args.flag_add {
-        add_script(script)
-    } else if let Some(script) = args.flag_script {
-        let result = run_script(script);
+    } else if let Some(target) = args.flag_add {
+        add_target(target)
+    } else if let Some(target) = args.flag_fuzz_target {
+        let result = run_target(target);
         if let Ok(success) = result {
             if success {
                 // Can this ever happen?
@@ -110,11 +110,11 @@ libfuzzer
 "#)?;
 
     let mut script = fs::File::create(path::Path::new("./fuzz/fuzzers/fuzzer_script_1.rs"))?;
-    dummy_script(&mut script)
+    dummy_target(&mut script)
 }
 
-/// Create a dummy fuzz script script at the given path
-fn dummy_script(script: &mut fs::File) -> io::Result<()> {
+/// Create a dummy fuzz target script at the given path
+fn dummy_target(script: &mut fs::File) -> io::Result<()> {
 write!(script, r#"
 #![no_main]
 extern crate fuzzer_sys;
@@ -126,19 +126,20 @@ pub extern fn go(data: *const u8, size: isize) -> i32 {{
 }}"#)
 }
 
-/// Add a new fuzz script script with a given name
-fn add_script(script_name: String) -> io::Result<()> {
-    let script = format!("fuzz/fuzzers/{}.rs", script_name);
-    let mut script = fs::File::create(path::Path::new(&script))?;
-    dummy_script(&mut script)?;
+/// Add a new fuzz target script with a given name
+fn add_target(target: String) -> io::Result<()> {
+    let target_file = format!("fuzz/fuzzers/{}.rs", target);
+    let mut script = fs::File::create(path::Path::new(&target_file))?;
+    dummy_target(&mut script)?;
 
     let mut cargo = fs::OpenOptions::new().append(true).open(path::Path::new("./fuzz/Cargo.toml"))?;
 
-    write!(cargo, r#"\
-    [[bin]]\
-    name = "{0}"\
-    path = "fuzzers/{0}.rs"\
-    "#, script_name)
+write!(cargo, r#"
+[[bin]]
+name = "{0}"
+path = "fuzzers/{0}.rs"
+"#, target)
+
 }
 
 /// Build or rebuild libFuzzer (rebuilds only if the compiler version changed)
@@ -175,15 +176,15 @@ fn rebuild_libfuzzer() -> io::Result<()> {
     env::set_current_dir("..")
 }
 
-/// Fuzz a given fuzz script
-fn run_script(script: String) -> io::Result<bool> {
+/// Fuzz a given fuzz target
+fn run_target(target: String) -> io::Result<bool> {
     env::set_current_dir("./fuzz")?;
     rebuild_libfuzzer()?;
     let mut cmd = process::Command::new("cargo");
     cmd.arg("rustc")
        .arg("--verbose")
        .arg("--bin")
-       .arg(&script)
+       .arg(&target)
        .arg("--")
        .arg("-L")
        .arg("libfuzzer/target/release")
@@ -192,11 +193,11 @@ fn run_script(script: String) -> io::Result<bool> {
 
     let result = cmd.spawn()?.wait()?;
     if !result.success() {
-        return Err(io::Error::new(io::ErrorKind::Other, "Failed to build fuzz script"))
+        return Err(io::Error::new(io::ErrorKind::Other, "Failed to build fuzz target"))
     }
 
     // can't use cargo run since we can't pass -L args to it
-    let path = format!("target/debug/{}", script);
+    let path = format!("target/debug/{}", target);
     let mut run_cmd = process::Command::new(path);
     let result = run_cmd.spawn()?.wait()?;
     Ok(result.success())
