@@ -42,3 +42,10 @@ $ cargo fuzz --fuzz-target fuzzer_script_1 # or whatever the target is named
 ```
 
 Then, wait till it finds something!
+
+
+## Trophy case
+
+🏆 🏆 🏆 🏆 🏆 🏆  
+
+ - [toml-rs panic](https://github.com/alexcrichton/toml-rs/issues/152)
