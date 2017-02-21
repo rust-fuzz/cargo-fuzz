@@ -115,15 +115,14 @@ libfuzzer
 
 /// Create a dummy fuzz target script at the given path
 fn dummy_target(script: &mut fs::File) -> io::Result<()> {
-write!(script, r#"
+write!(script, "{}", r#"
 #![no_main]
 extern crate fuzzer_sys;
 
-#[export_name="LLVMFuzzerTestOneInput"]
-pub extern fn go(data: *const u8, size: isize) -> i32 {{
+#[export_name="rust_fuzzer_test_input"]
+pub extern fn go(data: &[u8]) {
     // fuzzed code goes here
-    0
-}}"#)
+}"#)
 }
 
 /// Add a new fuzz target script with a given name
