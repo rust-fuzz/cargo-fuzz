@@ -1,0 +1,10 @@
+[package]
+name = "cargo-fuzz"
+version = "0.1.0"
+authors = ["Manish Goregaokar <manishsmail@gmail.com>"]
+license = "MIT OR Apache-2.0"
+
+[dependencies]
+docopt = "0.7"
+rustc-serialize = "0.3"  # if you're using `derive(RustcDecodable)`
+cargo_metadata = "0.1.2"
