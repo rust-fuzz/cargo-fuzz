@@ -1,4 +1,4 @@
-// Copyright 2016 rust-fuzz Developers
+// Copyright 2016 rust-fuzz developers
 //
 // Licensed under the Apache License, Version 2.0, <LICENSE-APACHE or
 // http://apache.org/licenses/LICENSE-2.0> or the MIT license <LICENSE-MIT or
@@ -68,6 +68,9 @@ fn main() {
     }
 }
 
+/// Create all the files and folders we need to run
+///
+/// This will not clone libfuzzer-sys
 fn init_fuzz() -> io::Result<()> {
     // todo error handling
     let meta = metadata(None).unwrap();
@@ -106,6 +109,7 @@ libfuzzer
     dummy_target(&mut script)
 }
 
+/// Create a dummy fuzz target script at the given path
 fn dummy_target(script: &mut fs::File) -> io::Result<()> {
 write!(script, r#"
 #![no_main]
@@ -118,6 +122,7 @@ pub extern fn go(data: *const u8, size: isize) -> i32 {{
 }}"#)
 }
 
+/// Add a new fuzz target script with a given name
 fn add_target(target: String) -> io::Result<()> {
     let target_file = format!("fuzz/fuzzers/{}.rs", target);
     let mut script = fs::File::create(path::Path::new(&target_file))?;
@@ -133,6 +138,13 @@ path = "fuzzers/{0}.rs"
 
 }
 
+/// Build or rebuild libFuzzer (rebuilds only if the compiler version changed)
+///
+/// We can't just use libFuzzer as a dependency since libgcc will
+/// get compiled with sanitizer support. RUSTFLAGS does not discriminate
+/// between build dependencies and regular ones.
+///
+/// https://github.com/rust-lang/cargo/issues/3739
 fn rebuild_libfuzzer() -> io::Result<()> {
     if let Err(_) = env::set_current_dir("./libfuzzer") {
         let mut git = process::Command::new("git");
@@ -160,6 +172,7 @@ fn rebuild_libfuzzer() -> io::Result<()> {
     env::set_current_dir("..")
 }
 
+/// Fuzz a given fuzz target
 fn run_target(target: String) -> io::Result<bool> {
     env::set_current_dir("./fuzz")?;
     rebuild_libfuzzer()?;
