@@ -1,6 +1,6 @@
 [package]
 name = "cargo-fuzz"
-version = "0.1.0"
+version = "0.1.1"
 authors = ["Manish Goregaokar <manishsmail@gmail.com>"]
 license = "MIT OR Apache-2.0"
 description = "Simple wrapper around libFuzzer"
