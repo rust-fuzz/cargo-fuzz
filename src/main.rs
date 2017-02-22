@@ -9,7 +9,7 @@ extern crate cargo_metadata;
 extern crate docopt;
 extern crate rustc_serialize;
 
-use cargo_metadata::metadata;
+use cargo_metadata::{metadata, Package};
 use docopt::Docopt;
 use std::{env, fs, io, path, process};
 use std::io::Write;
@@ -72,12 +72,7 @@ fn main() {
 ///
 /// This will not clone libfuzzer-sys
 fn init_fuzz() -> io::Result<()> {
-    // todo error handling
-    let meta = metadata(None).unwrap();
-    let mut p = env::current_dir().unwrap();
-    p.push("Cargo.toml");
-    let p = p.to_str().unwrap();
-    let me = meta.packages.iter().find(|package| package.manifest_path == p).unwrap();
+    let me = get_package();
 
     fs::create_dir("./fuzz")?;
     fs::create_dir("./fuzz/fuzzers")?;
@@ -110,27 +105,43 @@ libfuzzer
 "#)?;
 
     let mut script = fs::File::create(path::Path::new("./fuzz/fuzzers/fuzzer_script_1.rs"))?;
-    dummy_target(&mut script)
+    dummy_target(&mut script, &me)
+}
+
+/// Returns metadata for the Cargo package in the current directory
+fn get_package() -> Package {
+    // todo error handling
+    let meta = metadata(None).unwrap();
+    let mut p = env::current_dir().unwrap();
+    p.push("Cargo.toml");
+    let p = p.to_str().unwrap();
+    meta.packages.into_iter().find(|package| package.manifest_path == p).unwrap()
+}
+
+/// If the package contains a library target, generate an `extern crate` line to link to it.
+fn link_to_lib(pkg: &Package) -> Option<String> {
+    pkg.targets.iter()
+               .find(|target| target.kind.iter().any(|k| k == "lib"))
+               .map(|target| format!("extern crate {};\n", target.name.replace("-", "_")))
 }
 
 /// Create a dummy fuzz target script at the given path
-fn dummy_target(script: &mut fs::File) -> io::Result<()> {
-write!(script, "{}", r#"#![no_main]
-
-
+fn dummy_target(script: &mut fs::File, pkg: &Package) -> io::Result<()> {
+write!(script, r#"#![no_main]
 extern crate fuzzer_sys;
-
+{}
 #[export_name="rust_fuzzer_test_input"]
-pub extern fn go(data: &[u8]) {
+pub extern fn go(data: &[u8]) {{
     // fuzzed code goes here
-}"#)
+}}"#, link_to_lib(pkg).unwrap_or(String::new()))
 }
 
 /// Add a new fuzz target script with a given name
 fn add_target(target: String) -> io::Result<()> {
     let target_file = format!("fuzz/fuzzers/{}.rs", target);
     let mut script = fs::File::create(path::Path::new(&target_file))?;
-    dummy_target(&mut script)?;
+    let me = get_package();
+    dummy_target(&mut script, &me)?;
 
     let mut cargo = fs::OpenOptions::new().append(true).open(path::Path::new("./fuzz/Cargo.toml"))?;
 
