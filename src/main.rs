@@ -115,8 +115,9 @@ libfuzzer
 
 /// Create a dummy fuzz target script at the given path
 fn dummy_target(script: &mut fs::File) -> io::Result<()> {
-write!(script, "{}", r#"
-#![no_main]
+write!(script, "{}", r#"#![no_main]
+
+
 extern crate fuzzer_sys;
 
 #[export_name="rust_fuzzer_test_input"]
