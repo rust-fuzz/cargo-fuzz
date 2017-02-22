@@ -180,6 +180,11 @@ fn rebuild_libfuzzer() -> io::Result<()> {
 fn run_target(target: String) -> io::Result<bool> {
     env::set_current_dir("./fuzz")?;
     rebuild_libfuzzer()?;
+    let mut flags = env::var("RUSTFLAGS").unwrap_or("".into());
+    if !flags.is_empty() {
+        flags.push(' ');
+    }
+    flags.push_str("-Cpasses=sancov -Cllvm-args=-sanitizer-coverage-level=3 -Zsanitizer=address -Cpanic=abort");
     let mut cmd = process::Command::new("cargo");
     cmd.arg("rustc")
        .arg("--verbose")
@@ -188,8 +193,7 @@ fn run_target(target: String) -> io::Result<bool> {
        .arg("--")
        .arg("-L")
        .arg("libfuzzer/target/release")
-       .env("RUSTFLAGS",
-            "-Cpasses=sancov -Cllvm-args=-sanitizer-coverage-level=3 -Zsanitizer=address -Cpanic=abort");
+       .env("RUSTFLAGS", &flags);
 
     let result = cmd.spawn()?.wait()?;
     if !result.success() {
