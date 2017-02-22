@@ -4,6 +4,7 @@ version = "0.1.1"
 authors = ["Manish Goregaokar <manishsmail@gmail.com>"]
 license = "MIT OR Apache-2.0"
 description = "Simple wrapper around libFuzzer"
+repository = "https://github.com/rust-fuzz/cargo-fuzz/"
 
 [dependencies]
 docopt = "0.7"
