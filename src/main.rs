@@ -103,6 +103,7 @@ path = "fuzzers/fuzzer_script_1.rs"
 write!(ignore, r#"
 target
 libfuzzer
+corpus
 "#)?;
 
     let mut script = fs::File::create(path::Path::new("./fuzz/fuzzers/fuzzer_script_1.rs"))?;
@@ -212,9 +213,18 @@ fn run_target(target: String) -> io::Result<bool> {
         return Err(io::Error::new(io::ErrorKind::Other, "Failed to build fuzz target"))
     }
 
+    if let Err(k) = fs::create_dir("corpus") {
+        if k.kind() == io::ErrorKind::AlreadyExists {
+            // do nothing
+        } else {
+            return Err(k);
+        }
+    }
+
     // can't use cargo run since we can't pass -L args to it
     let path = format!("target/debug/{}", target);
     let mut run_cmd = process::Command::new(path);
+    run_cmd.arg("corpus");
     let result = run_cmd.spawn()?.wait()?;
     Ok(result.success())
 }
