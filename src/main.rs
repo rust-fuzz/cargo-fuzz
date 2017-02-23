@@ -128,7 +128,7 @@ fn link_to_lib(pkg: &Package) -> Option<String> {
 /// Create a dummy fuzz target script at the given path
 fn dummy_target(script: &mut fs::File, pkg: &Package) -> io::Result<()> {
 write!(script, r#"#![no_main]
-extern crate fuzzer_sys;
+extern crate libfuzzer_sys;
 {}
 #[export_name="rust_fuzzer_test_input"]
 pub extern fn go(data: &[u8]) {{
