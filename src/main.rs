@@ -84,6 +84,7 @@ write!(cargo, r#"
 name = "{0}-fuzz"
 version = "0.0.1"
 authors = ["Automatically generated"]
+publish = false
 
 [dependencies.{0}]
 path = ".."
