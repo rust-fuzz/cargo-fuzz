@@ -50,4 +50,4 @@ Then, wait till it finds something!
 🏆 🏆 🏆 🏆 🏆 🏆  
 
  - [toml-rs panic](https://github.com/alexcrichton/toml-rs/issues/152)
- - [unicode-segmentation correctness issue](https://github.com/unicode-rs/unicode-segmentation/issues/19)
+ - unicode-segmentation: [grapheme boundary correctness](https://github.com/unicode-rs/unicode-segmentation/issues/19), [word boundary correctness](https://github.com/unicode-rs/unicode-segmentation/issues/20)
