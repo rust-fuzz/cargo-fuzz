@@ -242,7 +242,8 @@ fn run_target(target: String) -> Result<bool, Box<error::Error>> {
     // can't use cargo run since we can't pass -L args to it
     let path = format!("target/debug/{}", target);
     let mut run_cmd = process::Command::new(path);
-    run_cmd.arg("corpus");
+    run_cmd.arg("corpus")
+           .env("ASAN_OPTIONS", "detect_odr_violation=0");
     let result = run_cmd.spawn()?.wait()?;
     Ok(result.success())
 }
