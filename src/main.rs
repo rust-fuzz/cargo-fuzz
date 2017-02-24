@@ -123,6 +123,7 @@ write!(ignore, r#"
 target
 libfuzzer
 corpus
+artifacts
 "#)?;
 
     let mut script = fs::File::create(path::Path::new("./fuzz/fuzzers/fuzzer_script_1.rs"))?;
@@ -207,6 +208,16 @@ fn rebuild_libfuzzer() -> Result<(), Box<error::Error>> {
         .map_err(|e| e.into())
 }
 
+fn make_dir_if_not_exist(dir: &str) -> Result<(), io::Error> {
+    if let Err(k) = fs::create_dir(dir) {
+        if k.kind() == io::ErrorKind::AlreadyExists {
+            // do nothing
+        } else {
+            return Err(k);
+        }
+    }
+    Ok(())
+}
 /// Fuzz a given fuzz target
 fn run_target(target: String) -> Result<bool, Box<error::Error>> {
     env::set_current_dir("./fuzz")?;
@@ -231,18 +242,15 @@ fn run_target(target: String) -> Result<bool, Box<error::Error>> {
         return Err("Failed to build fuzz target".into())
     }
 
-    if let Err(k) = fs::create_dir("corpus") {
-        if k.kind() == io::ErrorKind::AlreadyExists {
-            // do nothing
-        } else {
-            return Err(k.into());
-        }
-    }
+    make_dir_if_not_exist("corpus")?;
+    make_dir_if_not_exist("artifacts")?;
 
     // can't use cargo run since we can't pass -L args to it
     let path = format!("target/debug/{}", target);
     let mut run_cmd = process::Command::new(path);
-    run_cmd.arg("corpus");
+    run_cmd.arg("-artifact_prefix=artifacts/")
+           .arg("corpus") // must be last arg
+           .env("ASAN_OPTIONS", "detect_odr_violation=0");
     let result = run_cmd.spawn()?.wait()?;
     Ok(result.success())
 }
