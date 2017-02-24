@@ -11,7 +11,7 @@ extern crate rustc_serialize;
 
 use cargo_metadata::{metadata, Package};
 use docopt::Docopt;
-use std::{env, fs, io, path, process};
+use std::{env, error, fs, io, path, process};
 use std::io::Write;
 
 const USAGE: &'static str = "
@@ -21,6 +21,7 @@ Usage:
   cargo fuzz --init
   cargo fuzz --fuzz-target TARGET
   cargo fuzz --add TARGET
+  cargo fuzz --list
   cargo fuzz (-h | --help)
 
 Options:
@@ -28,6 +29,7 @@ Options:
   --init                 Initialize fuzz folder
   --fuzz-target TARGET   Run with given fuzz target in fuzz/fuzzers
   --add TARGET           Add a new fuzz target
+  --list                 List the available fuzz targets
 ";
 
 #[derive(Debug, RustcDecodable)]
@@ -35,6 +37,7 @@ struct Args {
     flag_init: bool,
     flag_add: Option<String>,
     flag_fuzz_target: Option<String>,
+    flag_list: bool,
 }
 
 fn main() {
@@ -59,19 +62,35 @@ fn main() {
         } else {
             result.map(|_| ())
         }
+    } else if args.flag_list {
+        list_fuzz_targets()
+            .map(|_| ())
     } else {
         println!("Invalid arguments. Usage:\n{}", USAGE);
         return;
     };
     if let Err(error) = result {
-        println!("Error: {:?}", error);
+        writeln!(io::stderr(), "Error: {}", error)
+            .expect("failed writing to stderr");
     }
+}
+
+fn list_fuzz_targets() -> Result<(), Box<error::Error>> {
+    if !path::Path::new("./fuzz").is_dir() {
+        return Err("Fuzzing crate has not been initialized. Run `cargo fuzz --init` to initialize it.".into());
+    }
+    env::set_current_dir("./fuzz")?;
+    let package = get_package();
+    for target in &package.targets {
+        println!("{}", target.name);
+    }
+    Ok(())
 }
 
 /// Create all the files and folders we need to run
 ///
 /// This will not clone libfuzzer-sys
-fn init_fuzz() -> io::Result<()> {
+fn init_fuzz() -> Result<(), Box<error::Error>> {
     let me = get_package();
 
     fs::create_dir("./fuzz")?;
@@ -128,18 +147,18 @@ fn link_to_lib(pkg: &Package) -> Option<String> {
 }
 
 /// Create a dummy fuzz target script at the given path
-fn dummy_target(script: &mut fs::File, pkg: &Package) -> io::Result<()> {
+fn dummy_target(script: &mut fs::File, pkg: &Package) -> Result<(), Box<error::Error>> {
 write!(script, r#"#![no_main]
 extern crate libfuzzer_sys;
 {}
 #[export_name="rust_fuzzer_test_input"]
 pub extern fn go(data: &[u8]) {{
     // fuzzed code goes here
-}}"#, link_to_lib(pkg).unwrap_or(String::new()))
+}}"#, link_to_lib(pkg).unwrap_or(String::new())).map_err(|e| e.into())
 }
 
 /// Add a new fuzz target script with a given name
-fn add_target(target: String) -> io::Result<()> {
+fn add_target(target: String) -> Result<(), Box<error::Error>> {
     let target_file = format!("fuzz/fuzzers/{}.rs", target);
     let mut script = fs::File::create(path::Path::new(&target_file))?;
     let me = get_package();
@@ -151,7 +170,7 @@ write!(cargo, r#"
 [[bin]]
 name = "{0}"
 path = "fuzzers/{0}.rs"
-"#, target)
+"#, target).map_err(|e| e.into())
 
 }
 
@@ -162,7 +181,7 @@ path = "fuzzers/{0}.rs"
 /// between build dependencies and regular ones.
 ///
 /// https://github.com/rust-lang/cargo/issues/3739
-fn rebuild_libfuzzer() -> io::Result<()> {
+fn rebuild_libfuzzer() -> Result<(), Box<error::Error>> {
     if let Err(_) = env::set_current_dir("./libfuzzer") {
         let mut git = process::Command::new("git");
         let mut cmd = git.arg("clone")
@@ -170,8 +189,7 @@ fn rebuild_libfuzzer() -> io::Result<()> {
                          .arg("libfuzzer");
         let result = cmd.spawn()?.wait()?;
         if !result.success() {
-            return Err(io::Error::new(io::ErrorKind::Other,
-                                      "Failed to clone libfuzzer-sys"))
+            return Err("Failed to clone libfuzzer-sys".into())
         }
         env::set_current_dir("./libfuzzer")?;
     }
@@ -183,14 +201,14 @@ fn rebuild_libfuzzer() -> io::Result<()> {
 
     let result = cmd.spawn()?.wait()?;
     if !result.success() {
-        return Err(io::Error::new(io::ErrorKind::Other,
-                                  "Failed to build libfuzzer-sys"))
+        return Err("Failed to build libfuzzer-sys".into())
     }
     env::set_current_dir("..")
+        .map_err(|e| e.into())
 }
 
 /// Fuzz a given fuzz target
-fn run_target(target: String) -> io::Result<bool> {
+fn run_target(target: String) -> Result<bool, Box<error::Error>> {
     env::set_current_dir("./fuzz")?;
     rebuild_libfuzzer()?;
     let mut flags = env::var("RUSTFLAGS").unwrap_or("".into());
@@ -210,14 +228,14 @@ fn run_target(target: String) -> io::Result<bool> {
 
     let result = cmd.spawn()?.wait()?;
     if !result.success() {
-        return Err(io::Error::new(io::ErrorKind::Other, "Failed to build fuzz target"))
+        return Err("Failed to build fuzz target".into())
     }
 
     if let Err(k) = fs::create_dir("corpus") {
         if k.kind() == io::ErrorKind::AlreadyExists {
             // do nothing
         } else {
-            return Err(k);
+            return Err(k.into());
         }
     }
 
