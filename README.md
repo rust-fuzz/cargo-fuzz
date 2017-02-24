@@ -47,7 +47,9 @@ Then, wait till it finds something!
 
 ## Trophy case
 
-🏆 🏆 🏆 🏆 🏆 🏆  
+🏆 🏆 🏆 🏆 🏆 🏆
 
  - [toml-rs panic](https://github.com/alexcrichton/toml-rs/issues/152)
  - unicode-segmentation: [grapheme boundary correctness](https://github.com/unicode-rs/unicode-segmentation/issues/19), [word boundary correctness](https://github.com/unicode-rs/unicode-segmentation/issues/20)
+ - image: [1](https://github.com/PistonDevelopers/image/issues/622), [2](https://github.com/PistonDevelopers/image/issues/623), [3](https://github.com/PistonDevelopers/image/issues/624), [4](https://github.com/PistonDevelopers/image/issues/625)
+ - inflate: [arithmetic overflow](https://github.com/PistonDevelopers/inflate/issues/14)
