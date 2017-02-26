@@ -3,9 +3,9 @@
 Commandline wrapper for using libFuzzer. Easy to use, no need to recompile LLVM!
 
 
-libFuzzer needs LLVM sanitizer support, so this is Linux-only for now. It also
+libFuzzer needs LLVM sanitizer support, so this is x86-64 Linux-only for now. It also
 may not work well with projects that have build scripts due to
-https://github.com/rust-lang/cargo/issues/3739
+https://github.com/rust-lang/cargo/issues/3739 . This also needs a nightly since it uses some unstable commandline flags.
 
 This crate is currently under some churn -- in case stuff isn't working, please reinstall it (`cargo install cargo-fuzz -f`), and delete the cloned `libfuzzer-sys` folder in the `fuzz/` folder. Rerunning `cargo fuzz --init` after moving your `fuzz` folder and updating this crate may get you a better generated `fuzz/Cargo.toml`. Expect this to settle down soon.
 
