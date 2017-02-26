@@ -75,20 +75,30 @@ fn main() {
         list_fuzz_targets(&mut term_stdout)
             .map(|_| ())
     } else {
-        if let Some(ref mut terminal) = term_stdout {
-            let _ = terminal.fg(term::color::GREEN);
-            println!("Invalid arguments. Usage:\n{}", USAGE);
+        if let Some(ref mut terminal) = term_stderr {
+            let _ = terminal.attr(term::Attr::Bold);
+            let _ = terminal.fg(term::color::RED);
+            write!(io::stderr(), "Error:")
+                .expect("failed writing to stderr");
+            let _ = terminal.fg(term::color::WHITE);
+            writeln!(io::stderr(), " Invalid arguments. Usage:\n{}", USAGE)
+                .expect("failed writing to stderr");
             let _ = terminal.reset();
         } else {
-            println!("Invalid arguments. Usage:\n{}", USAGE);
+            writeln!(io::stderr(), "Invalid arguments. Usage:\n{}", USAGE)
+                .expect("failed writing to stderr");
         }
 
         return;
     };
     if let Err(error) = result {
         if let Some(ref mut terminal) = term_stderr {
+            let _ = terminal.attr(term::Attr::Bold);
             let _ = terminal.fg(term::color::RED);
-            writeln!(io::stderr(), "Error: {}", error)
+            write!(io::stderr(), "Error: ")
+                .expect("failed writing to stderr");
+            let _ = terminal.fg(term::color::WHITE);
+            writeln!(io::stderr(), "{}", error)
                 .expect("failed writing to stderr");
             let _ = terminal.reset();
         } else {
