@@ -8,6 +8,7 @@
 extern crate cargo_metadata;
 extern crate docopt;
 extern crate rustc_serialize;
+extern crate term;
 
 use cargo_metadata::{metadata, Package};
 use docopt::Docopt;
@@ -41,6 +42,8 @@ struct Args {
 }
 
 fn main() {
+    let mut term_stdout = term::stdout();
+    let mut term_stderr = term::stderr();
     let args: Args = Docopt::new(USAGE)
                             .and_then(|d| d.decode())
                             .unwrap_or_else(|e| e.exit());
@@ -56,34 +59,63 @@ fn main() {
                 // Can this ever happen?
                 Ok(())
             } else {
-                println!("Fuzzing found errors!");
+                if let Some(ref mut terminal) = term_stdout {
+                    let _ = terminal.fg(term::color::YELLOW);
+                    println!("Fuzzing found errors!");
+                    let _ = terminal.reset();
+                } else {
+                    println!("Fuzzing found errors!");
+                }
                 process::exit(-1)
             }
         } else {
             result.map(|_| ())
         }
     } else if args.flag_list {
-        list_fuzz_targets()
+        list_fuzz_targets(&mut term_stdout)
             .map(|_| ())
     } else {
-        println!("Invalid arguments. Usage:\n{}", USAGE);
+        if let Some(ref mut terminal) = term_stdout {
+            let _ = terminal.fg(term::color::GREEN);
+            println!("Invalid arguments. Usage:\n{}", USAGE);
+            let _ = terminal.reset();
+        } else {
+            println!("Invalid arguments. Usage:\n{}", USAGE);
+        }
+
         return;
     };
     if let Err(error) = result {
-        writeln!(io::stderr(), "Error: {}", error)
-            .expect("failed writing to stderr");
+        if let Some(ref mut terminal) = term_stderr {
+            let _ = terminal.fg(term::color::RED);
+            writeln!(io::stderr(), "Error: {}", error)
+                .expect("failed writing to stderr");
+            let _ = terminal.reset();
+        } else {
+            writeln!(io::stderr(), "Error: {}", error)
+                .expect("failed writing to stderr");
+        }
     }
 }
 
-fn list_fuzz_targets() -> Result<(), Box<error::Error>> {
+fn list_fuzz_targets(terminal: &mut Option<Box<term::StdoutTerminal>>) -> Result<(), Box<error::Error>> {
     if !path::Path::new("./fuzz").is_dir() {
         return Err("Fuzzing crate has not been initialized. Run `cargo fuzz --init` to initialize it.".into());
+    }
+
+    if let Some(ref mut term_stdout) = *terminal {
+        let _ = term_stdout.fg(term::color::GREEN);
     }
     env::set_current_dir("./fuzz")?;
     let package = get_package();
     for target in &package.targets {
         println!("{}", target.name);
     }
+
+    if let Some(ref mut term_stdout) = *terminal {
+        let _ = term_stdout.reset();
+    }
+
     Ok(())
 }
 
