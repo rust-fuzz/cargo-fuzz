@@ -274,6 +274,8 @@ fn run_target(target: String) -> Result<bool, Box<error::Error>> {
        .arg("--verbose")
        .arg("--bin")
        .arg(&target)
+       .arg("--target")
+       .arg("x86_64-unknown-linux-gnu") // won't pass rustflags to build scripts
        .arg("--")
        .arg("-L")
        .arg("libfuzzer/target/release")
