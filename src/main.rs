@@ -69,11 +69,11 @@ fn main() {
         list_fuzz_targets()
             .map(|_| ())
     } else {
-        utils::write_to_stderr(format!("Invalid arguments. Usage:\n{}", USAGE).as_str());
+        utils::write_to_stderr("Invalid arguments. Usage:", Some(USAGE));
         return;
     };
     if let Err(error) = result {
-        utils::write_to_stderr(error.description());
+        utils::write_to_stderr(error.description(), None);
     }
 }
 
