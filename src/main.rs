@@ -6,53 +6,47 @@
 // copied, modified, or distributed except according to those terms.
 
 extern crate cargo_metadata;
-extern crate docopt;
+extern crate clap;
 extern crate rustc_serialize;
 extern crate term;
 
 use cargo_metadata::{metadata, Package};
-use docopt::Docopt;
-use std::{env, error, fs, io, path, process};
+use clap::{App, Arg};
+use std::{convert, env, error, fmt, fs, io, path, process};
 use std::io::Write;
 
 mod utils;
 
-const USAGE: &'static str = "
-Cargo Fuzz
-
-Usage:
-  cargo fuzz --init
-  cargo fuzz --fuzz-target TARGET
-  cargo fuzz --add TARGET
-  cargo fuzz --list
-  cargo fuzz (-h | --help)
-
-Options:
-  -h --help              Show this screen.
-  --init                 Initialize fuzz folder
-  --fuzz-target TARGET   Run with given fuzz target in fuzz/fuzzers
-  --add TARGET           Add a new fuzz target
-  --list                 List the available fuzz targets
-";
-
-#[derive(Debug, RustcDecodable)]
-struct Args {
-    flag_init: bool,
-    flag_add: Option<String>,
-    flag_fuzz_target: Option<String>,
-    flag_list: bool,
-}
+const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 
 fn main() {
-    let args: Args = Docopt::new(USAGE)
-                            .and_then(|d| d.decode())
-                            .unwrap_or_else(|e| e.exit());
+    let app = App::new("cargo-fuzz")
+        .version(VERSION.unwrap_or("unknown"))
+        .arg(Arg::with_name("init")
+            .long("init")
+            .help("Initialize fuzz folder"))
+        .arg(Arg::with_name("fuzz-target")
+            .long("fuzz-target")
+            .value_name("TARGET")
+            .help("Run with given fuzz target in fuzz/fuzzers")
+            .takes_value(true))
+        .arg(Arg::with_name("add")
+            .long("add")
+            .value_name("TARGET")
+            .help("Add a new fuzz target")
+            .takes_value(true))
+        .arg(Arg::with_name("list")
+            .long("list")
+             .help("List the available fuzz targets"));
+    let mut app_help = Vec::new();
+    app.write_help(&mut app_help).ok().expect("could not write help");
+    let args = app.get_matches();
 
-    let result = if args.flag_init {
+    let result = if args.is_present("init") {
         init_fuzz()
-    } else if let Some(target) = args.flag_add {
+    } else if let Some(target) = args.value_of("add") {
         add_target(target)
-    } else if let Some(target) = args.flag_fuzz_target {
+    } else if let Some(target) = args.value_of("fuzz-target") {
         let result = run_target(target);
         if let Ok(success) = result {
             if success {
@@ -65,11 +59,12 @@ fn main() {
         } else {
             result.map(|_| ())
         }
-    } else if args.flag_list {
+    } else if args.is_present("list") {
         list_fuzz_targets()
             .map(|_| ())
     } else {
-        utils::write_to_stderr("Invalid arguments. Usage:", Some(USAGE));
+        println!("Invalid arguments. Usage:\n{}",
+                 String::from_utf8(app_help).expect("help not utf8!"));
         return;
     };
     if let Err(error) = result {
@@ -163,7 +158,7 @@ pub extern fn go(data: &[u8]) {{
 }
 
 /// Add a new fuzz target script with a given name
-fn add_target(target: String) -> Result<(), Box<error::Error>> {
+fn add_target<S>(target: S) -> Result<(), Box<error::Error>> where S: Into<String> + fmt::Display {
     let target_file = format!("fuzz/fuzzers/{}.rs", target);
     let mut script = fs::File::create(path::Path::new(&target_file))?;
     let me = get_package();
@@ -223,7 +218,7 @@ fn make_dir_if_not_exist(dir: &str) -> Result<(), io::Error> {
     Ok(())
 }
 /// Fuzz a given fuzz target
-fn run_target(target: String) -> Result<bool, Box<error::Error>> {
+fn run_target<S>(target: S) -> Result<bool, Box<error::Error>> where S: Into<String> + fmt::Display + convert::AsRef<std::ffi::OsStr> {
     env::set_current_dir("./fuzz")?;
     rebuild_libfuzzer()?;
     let mut flags = env::var("RUSTFLAGS").unwrap_or("".into());
