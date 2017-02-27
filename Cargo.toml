@@ -7,6 +7,6 @@ description = "Simple wrapper around libFuzzer"
 repository = "https://github.com/rust-fuzz/cargo-fuzz/"
 
 [dependencies]
-docopt = "0.7"
 rustc-serialize = "0.3"  # if you're using `derive(RustcDecodable)`
 cargo_metadata = "0.1.2"
+clap = "2.20.5"
