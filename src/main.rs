@@ -4,6 +4,7 @@
 // http://apache.org/licenses/LICENSE-2.0> or the MIT license <LICENSE-MIT or
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
+
 extern crate cargo_metadata;
 extern crate docopt;
 extern crate rustc_serialize;
@@ -68,7 +69,7 @@ fn main() {
         list_fuzz_targets()
             .map(|_| ())
     } else {
-        utils::write_to_stderr(format!("{}{}", "Invalid arguments. Usage:\n{}", USAGE).as_str());
+        utils::write_to_stderr(format!("Invalid arguments. Usage:\n{}", USAGE).as_str());
         return;
     };
     if let Err(error) = result {
