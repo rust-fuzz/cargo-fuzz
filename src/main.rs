@@ -11,8 +11,8 @@ extern crate rustc_serialize;
 extern crate term;
 
 use cargo_metadata::{metadata, Package};
-use clap::{App, Arg};
-use std::{convert, env, error, fmt, fs, io, path, process};
+use clap::{App, Arg, SubCommand, ArgMatches, AppSettings};
+use std::{env, error, fs, io, path, process};
 use std::io::Write;
 
 mod utils;
@@ -22,68 +22,25 @@ const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
 fn main() {
     let app = App::new("cargo-fuzz")
         .version(VERSION.unwrap_or("unknown"))
-        .arg(Arg::with_name("init")
-            .long("init")
-            .help("Initialize fuzz folder"))
-        .arg(Arg::with_name("fuzz-target")
-            .long("fuzz-target")
-            .value_name("TARGET")
-            .help("Run with given fuzz target in fuzz/fuzzers")
-            .takes_value(true))
-        .arg(Arg::with_name("add")
-            .long("add")
-            .value_name("TARGET")
-            .help("Add a new fuzz target")
-            .takes_value(true))
-        .arg(Arg::with_name("list")
-            .long("list")
-             .help("List the available fuzz targets"));
-    let mut app_help = Vec::new();
-    app.write_help(&mut app_help).ok().expect("could not write help");
+        .setting(AppSettings::SubcommandRequired)
+        .subcommand(SubCommand::with_name("init").about("Initialize the fuzz folder"))
+        .subcommand(SubCommand::with_name("run").about("Run the fuzz target in fuzz/fuzzers")
+                    .arg(Arg::with_name("TARGET").required(true)))
+        .subcommand(SubCommand::with_name("add").about("Add a new fuzz target")
+                    .arg(Arg::with_name("TARGET").required(true)))
+        .subcommand(SubCommand::with_name("list").about("List all fuzz targets"));
     let args = app.get_matches();
 
-    let result = if args.is_present("init") {
-        init_fuzz()
-    } else if let Some(target) = args.value_of("add") {
-        add_target(target)
-    } else if let Some(target) = args.value_of("fuzz-target") {
-        let result = run_target(target);
-        if let Ok(success) = result {
-            if success {
-                // Can this ever happen?
-                Ok(())
-            } else {
-                utils::print_message("Fuzzing found errors!", term::color::YELLOW);
-                process::exit(-1)
-            }
-        } else {
-            result.map(|_| ())
-        }
-    } else if args.is_present("list") {
-        list_fuzz_targets()
-            .map(|_| ())
-    } else {
-        println!("Invalid arguments. Usage:\n{}",
-                 String::from_utf8(app_help).expect("help not utf8!"));
-        return;
-    };
-    if let Err(error) = result {
-        utils::write_to_stderr(error.description(), None);
-    }
-}
-
-fn list_fuzz_targets() -> Result<(), Box<error::Error>> {
-    if !path::Path::new("./fuzz").is_dir() {
-        return Err("Fuzzing crate has not been initialized. Run `cargo fuzz --init` to initialize it.".into());
-    }
-
-    env::set_current_dir("./fuzz")?;
-    let package = get_package();
-    for target in &package.targets {
-        utils::print_message(target.name.as_str(), term::color::GREEN);
-    }
-
-    Ok(())
+    ::std::process::exit(match args.subcommand() {
+        ("init", _) => init_fuzz(),
+        ("add", matches) => add_target(matches.expect("arguments present")),
+        ("list", _) => list_targets(),
+        ("run", matches) => exec_target(matches.expect("arguments present")),
+        (s, _) => panic!("unimplemented subcommand {}!", s),
+    }.map(|_| 0).unwrap_or_else(|err| {
+        writeln!(io::stderr(), "Error: {}", err).expect("failed writing to stderr");
+        1
+    }));
 }
 
 /// Create all the files and folders we need to run
@@ -129,6 +86,19 @@ artifacts
     dummy_target(&mut script, &me)
 }
 
+
+fn list_targets() -> Result<(), Box<error::Error>> {
+    if !path::Path::new("./fuzz").is_dir() {
+        return Err("Fuzzing has not been initialized. Run `cargo fuzz init` first.".into());
+    }
+    env::set_current_dir("./fuzz")?;
+    let package = get_package();
+    for target in &package.targets {
+        println!("{}", target.name);
+    }
+    Ok(())
+}
+
 /// Returns metadata for the Cargo package in the current directory
 fn get_package() -> Package {
     // todo error handling
@@ -158,8 +128,11 @@ pub extern fn go(data: &[u8]) {{
 }
 
 /// Add a new fuzz target script with a given name
-fn add_target<S>(target: S) -> Result<(), Box<error::Error>> where S: Into<String> + fmt::Display {
-    let target_file = format!("fuzz/fuzzers/{}.rs", target);
+fn add_target<'a>(args: &ArgMatches<'a>) -> Result<(), Box<error::Error>> {
+    let target: String = args.value_of_os("TARGET").expect("TARGET is required").to_os_string()
+        .into_string().map_err(|_| "TARGET must be valid unicode")?;
+    let components: &[&path::Path] = &["fuzz".as_ref(), "fuzzers".as_ref(), target.as_ref()];
+    let target_file = components.iter().collect::<path::PathBuf>();
     let mut script = fs::File::create(path::Path::new(&target_file))?;
     let me = get_package();
     dummy_target(&mut script, &me)?;
@@ -218,7 +191,10 @@ fn make_dir_if_not_exist(dir: &str) -> Result<(), io::Error> {
     Ok(())
 }
 /// Fuzz a given fuzz target
-fn run_target<S>(target: S) -> Result<bool, Box<error::Error>> where S: Into<String> + fmt::Display + convert::AsRef<std::ffi::OsStr> {
+fn exec_target<'a>(args: &ArgMatches<'a>) -> Result<(), Box<error::Error>> {
+    let target: String = args.value_of_os("TARGET").expect("TARGET is required").to_os_string()
+        .into_string().map_err(|_| "TARGET must be valid unicode")?;
+
     env::set_current_dir("./fuzz")?;
     rebuild_libfuzzer()?;
     let mut flags = env::var("RUSTFLAGS").unwrap_or("".into());
@@ -252,6 +228,17 @@ fn run_target<S>(target: S) -> Result<bool, Box<error::Error>> where S: Into<Str
     run_cmd.arg("-artifact_prefix=artifacts/")
            .arg("corpus") // must be last arg
            .env("ASAN_OPTIONS", "detect_odr_violation=0");
-    let result = run_cmd.spawn()?.wait()?;
-    Ok(result.success())
+    exec_cmd(&mut run_cmd)?;
+    Ok(())
+}
+
+#[cfg(unix)]
+fn exec_cmd(cmd: &mut process::Command) -> ::std::io::Result<process::ExitStatus> {
+    use std::os::unix::process::CommandExt;
+    Err(cmd.exec())
+}
+
+#[cfg(not(unix))]
+fn exec_cmd(cmd: &mut process::Command) -> ::std::io::Result<process::ExitStatus> {
+    cmd.status()
 }
