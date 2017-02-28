@@ -21,11 +21,17 @@ fn main() {
     let app = App::new("cargo-fuzz")
         .version(option_env!("CARGO_PKG_VERSION").unwrap_or("0.0.0"))
         .about(option_env!("CARGO_PKG_DESCRIPTION").unwrap_or(""))
-        .setting(AppSettings::SubcommandRequired)
+        .setting(AppSettings::SubcommandRequiredElseHelp)
         .setting(AppSettings::GlobalVersion)
+        // cargo passes in the subcommand name to the invoked executable. Use a hidden, optional
+        // positional argument to deal with it?
+        .arg(Arg::with_name("dummy").possible_value("fuzz").required(false).hidden(true))
         .subcommand(SubCommand::with_name("init").about("Initialize the fuzz folder"))
         .subcommand(SubCommand::with_name("run").about("Run the fuzz target in fuzz/fuzzers")
-                    .arg(Arg::with_name("TARGET").required(true)))
+            .setting(AppSettings::TrailingVarArg)
+            .arg(Arg::with_name("TARGET").required(true))
+            .arg(Arg::with_name("ARGS").multiple(true))
+        )
         .subcommand(SubCommand::with_name("add").about("Add a new fuzz target")
                     .arg(Arg::with_name("TARGET").required(true)))
         .subcommand(SubCommand::with_name("list").about("List all fuzz targets"));
@@ -194,6 +200,9 @@ fn make_dir_if_not_exist(dir: &str) -> Result<(), io::Error> {
 fn exec_target<'a>(args: &ArgMatches<'a>) -> Result<(), Box<error::Error>> {
     let target: String = args.value_of_os("TARGET").expect("TARGET is required").to_os_string()
         .into_string().map_err(|_| "TARGET must be valid unicode")?;
+    let exec_args = args.values_of_os("ARGS");
+
+    let target_triple = "x86_64-unknown-linux-gnu";
 
     env::set_current_dir("./fuzz")?;
     rebuild_libfuzzer()?;
@@ -208,7 +217,7 @@ fn exec_target<'a>(args: &ArgMatches<'a>) -> Result<(), Box<error::Error>> {
        .arg("--bin")
        .arg(&target)
        .arg("--target")
-       .arg("x86_64-unknown-linux-gnu") // won't pass rustflags to build scripts
+       .arg(target_triple) // won't pass rustflags to build scripts
        .arg("--")
        .arg("-L")
        .arg("libfuzzer/target/release")
@@ -223,11 +232,15 @@ fn exec_target<'a>(args: &ArgMatches<'a>) -> Result<(), Box<error::Error>> {
     make_dir_if_not_exist("artifacts")?;
 
     // can't use cargo run since we can't pass -L args to it
-    let path = format!("target/debug/{}", target);
-    let mut run_cmd = process::Command::new(path);
+    let components: &[&path::Path] = &["target".as_ref(),
+                                       target_triple.as_ref(),
+                                       "debug".as_ref(),
+                                       target.as_ref()];
+    let mut run_cmd = process::Command::new(components.iter().collect::<path::PathBuf>());
     run_cmd.arg("-artifact_prefix=artifacts/")
-           .arg("corpus") // must be last arg
            .env("ASAN_OPTIONS", "detect_odr_violation=0");
+    exec_args.map(|args| for arg in args { run_cmd.arg(arg); });
+    run_cmd.arg("corpus"); // must be last arg
     exec_cmd(&mut run_cmd)?;
     Ok(())
 }
