@@ -1,12 +1,13 @@
 [package]
 name = "cargo-fuzz"
-version = "0.2.1"
+version = "0.2.2"
 authors = ["Manish Goregaokar <manishsmail@gmail.com>"]
 license = "MIT OR Apache-2.0"
 description = "Simple wrapper around libFuzzer"
 repository = "https://github.com/rust-fuzz/cargo-fuzz/"
 
 [dependencies]
-docopt = "0.7"
+docopt          = "0.7"
 rustc-serialize = "0.3"  # if you're using `derive(RustcDecodable)`
-cargo_metadata = "0.1.2"
+cargo_metadata  = "0.1.2"
+term            = "0.4.5"

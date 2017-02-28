@@ -8,11 +8,14 @@
 extern crate cargo_metadata;
 extern crate docopt;
 extern crate rustc_serialize;
+extern crate term;
 
 use cargo_metadata::{metadata, Package};
 use docopt::Docopt;
 use std::{env, error, fs, io, path, process};
 use std::io::Write;
+
+mod utils;
 
 const USAGE: &'static str = "
 Cargo Fuzz
@@ -56,7 +59,7 @@ fn main() {
                 // Can this ever happen?
                 Ok(())
             } else {
-                println!("Fuzzing found errors!");
+                utils::print_message("Fuzzing found errors!", term::color::YELLOW);
                 process::exit(-1)
             }
         } else {
@@ -66,12 +69,11 @@ fn main() {
         list_fuzz_targets()
             .map(|_| ())
     } else {
-        println!("Invalid arguments. Usage:\n{}", USAGE);
+        utils::write_to_stderr("Invalid arguments. Usage:", Some(USAGE));
         return;
     };
     if let Err(error) = result {
-        writeln!(io::stderr(), "Error: {}", error)
-            .expect("failed writing to stderr");
+        utils::write_to_stderr(error.description(), None);
     }
 }
 
@@ -79,11 +81,13 @@ fn list_fuzz_targets() -> Result<(), Box<error::Error>> {
     if !path::Path::new("./fuzz").is_dir() {
         return Err("Fuzzing crate has not been initialized. Run `cargo fuzz --init` to initialize it.".into());
     }
+
     env::set_current_dir("./fuzz")?;
     let package = get_package();
     for target in &package.targets {
-        println!("{}", target.name);
+        utils::print_message(target.name.as_str(), term::color::GREEN);
     }
+
     Ok(())
 }
 
