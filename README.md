@@ -52,3 +52,4 @@ Then, wait till it finds something!
  - image: [1](https://github.com/PistonDevelopers/image/issues/622), [2](https://github.com/PistonDevelopers/image/issues/623), [3](https://github.com/PistonDevelopers/image/issues/624), [4](https://github.com/PistonDevelopers/image/issues/625)
  - inflate: [arithmetic overflow](https://github.com/PistonDevelopers/inflate/issues/14)
  - capnproto-rust: [Multiple bugs, including a memory safety bug](https://dwrensha.github.io/capnproto-rust/2017/02/27/cargo-fuzz.html)
+ - hyper: [arithmetic overflow](https://github.com/hyperium/hyper/pull/1076)
