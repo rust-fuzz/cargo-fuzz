@@ -2,9 +2,10 @@ use std::io;
 use std::io::Write;
 use term;
 
+#[allow(dead_code)]
 pub fn print_message(msg: &str, color: term::color::Color) {
     let term_stdout = term::stdout();
-    
+
     if let Some(mut terminal) = term_stdout {
         let _ = terminal.fg(color);
         println!("{}", msg);
@@ -22,10 +23,9 @@ pub fn write_to_stderr(err_msg: &str, ext_msg: Option<&str>) {
         let _ = terminal.fg(term::color::RED);
         write!(io::stderr(), "Error: ")
             .expect("failed writing to stderr");
-        let _ = terminal.fg(term::color::WHITE);
+        let _ = terminal.reset();
         writeln!(io::stderr(), "{}", err_msg)
             .expect("failed writing to stderr");
-        let _ = terminal.reset();
     } else {
         write!(io::stderr(), "Error: ")
             .expect("failed writing to stderr");

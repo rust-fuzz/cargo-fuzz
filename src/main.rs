@@ -44,7 +44,7 @@ fn main() {
         ("run", matches) => exec_target(matches.expect("arguments present")),
         (s, _) => panic!("unimplemented subcommand {}!", s),
     }.map(|_| 0).unwrap_or_else(|err| {
-        writeln!(io::stderr(), "Error: {}", err).expect("failed writing to stderr");
+        utils::write_to_stderr(&format!("{}", err), None);
         1
     }));
 }
