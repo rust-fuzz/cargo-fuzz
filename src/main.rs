@@ -17,12 +17,12 @@ use std::io::Write;
 
 mod utils;
 
-const VERSION: Option<&'static str> = option_env!("CARGO_PKG_VERSION");
-
 fn main() {
     let app = App::new("cargo-fuzz")
-        .version(VERSION.unwrap_or("unknown"))
+        .version(option_env!("CARGO_PKG_VERSION").unwrap_or("0.0.0"))
+        .about(option_env!("CARGO_PKG_DESCRIPTION").unwrap_or(""))
         .setting(AppSettings::SubcommandRequired)
+        .setting(AppSettings::GlobalVersion)
         .subcommand(SubCommand::with_name("init").about("Initialize the fuzz folder"))
         .subcommand(SubCommand::with_name("run").about("Run the fuzz target in fuzz/fuzzers")
                     .arg(Arg::with_name("TARGET").required(true)))
