@@ -53,3 +53,4 @@ Then, wait till it finds something!
  - inflate: [arithmetic overflow](https://github.com/PistonDevelopers/inflate/issues/14)
  - capnproto-rust: [Multiple bugs, including a memory safety bug](https://dwrensha.github.io/capnproto-rust/2017/02/27/cargo-fuzz.html)
  - hyper: [arithmetic overflow](https://github.com/hyperium/hyper/pull/1076)
+ - libpnet: [arithmetic overflow](https://github.com/libpnet/libpnet/pull/250)
