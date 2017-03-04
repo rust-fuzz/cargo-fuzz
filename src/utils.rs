@@ -1,4 +1,3 @@
-use std::io;
 use std::io::Write;
 use term;
 
@@ -15,26 +14,22 @@ pub fn print_message(msg: &str, color: term::color::Color) {
     }
 }
 
-pub fn write_to_stderr(err_msg: &str, ext_msg: Option<&str>) {
-    let term_stderr = term::stderr();
+fn red(s: &str) {
+    let mut term_stderr = term::stderr();
+    term_stderr.as_mut().map(|t|{
+        let _ = t.attr(term::Attr::Bold);
+        let _ = t.fg(term::color::RED);
+    });
+    let _ = write!(::std::io::stderr(), "{}", s);
+    let _ = term_stderr.map(|mut t| t.reset());
+}
 
-    if let Some(mut terminal) = term_stderr {
-        let _ = terminal.attr(term::Attr::Bold);
-        let _ = terminal.fg(term::color::RED);
-        write!(io::stderr(), "Error: ")
-            .expect("failed writing to stderr");
-        let _ = terminal.reset();
-        writeln!(io::stderr(), "{}", err_msg)
-            .expect("failed writing to stderr");
-    } else {
-        write!(io::stderr(), "Error: ")
-            .expect("failed writing to stderr");
-        writeln!(io::stderr(), "{}", err_msg)
-            .expect("failed writing to stderr");
-    }
 
-    if let Some(description) = ext_msg {
-        writeln!(io::stderr(), "{}", description)
-            .expect("failed writing to stderr");
+pub fn report_error(e: super::Error) {
+    red("error:");
+    let _ = writeln!(::std::io::stderr(), " {}", e);
+    for e in e.iter().skip(1) {
+        red("  caused by:");
+        let _ = writeln!(::std::io::stderr(), " {}", e);
     }
 }
