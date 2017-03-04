@@ -102,7 +102,6 @@ impl FuzzProject {
         Ok(project)
     }
 
-
     fn list_targets(&self) -> Result<(), Error> {
         for bin in &self.targets {
             utils::print_message(bin, term::color::GREEN);
@@ -135,46 +134,33 @@ impl FuzzProject {
         let target_triple = "x86_64-unknown-linux-gnu";
 
         env::set_current_dir(self.path())?;
-        rebuild_libfuzzer()?;
         let mut flags = env::var("RUSTFLAGS").unwrap_or("".into());
         if !flags.is_empty() {
             flags.push(' ');
         }
         flags.push_str("-Cpasses=sancov -Cllvm-args=-sanitizer-coverage-level=3 -Zsanitizer=address -Cpanic=abort");
         let mut cmd = process::Command::new("cargo");
-        cmd.arg("rustc")
+
+        cmd.env("RUSTFLAGS", flags)
+           .arg("run")
            .arg("--verbose")
            .arg("--bin")
            .arg(&target)
            .arg("--target")
-           .arg(target_triple) // won't pass rustflags to build scripts
-           .arg("--")
-           .arg("-L")
-           .arg("libfuzzer/target/release")
-           .env("RUSTFLAGS", &flags);
-
-        let result = cmd.spawn()?.wait()?;
-        if !result.success() {
-            return Err("Failed to build fuzz target".into())
-        }
+           // won't pass rustflags to build scripts
+           .arg(target_triple)
+           .arg("--");
 
         fs::create_dir_all("corpus")?;
         fs::create_dir_all("artifacts")?;
 
-        // can't use cargo run since we can't pass -L args to it
-        let components: &[&path::Path] = &["target".as_ref(),
-                                           target_triple.as_ref(),
-                                           "debug".as_ref(),
-                                           target.as_ref()];
-        let mut run_cmd = process::Command::new(components.iter().collect::<path::PathBuf>());
-        run_cmd.arg("-artifact_prefix=artifacts/")
-               .env("ASAN_OPTIONS", "detect_odr_violation=0");
-        exec_args.map(|args| for arg in args { run_cmd.arg(arg); });
-        run_cmd.arg("corpus"); // must be last arg
-        exec_cmd(&mut run_cmd)?;
+        cmd.arg("-artifact_prefix=artifacts/")
+           .env("ASAN_OPTIONS", "detect_odr_violation=0");
+        exec_args.map(|args| for arg in args { cmd.arg(arg); });
+        cmd.arg("corpus"); // must be last arg
+        exec_cmd(&mut cmd)?;
         Ok(())
     }
-
 
     fn path(&self) -> path::PathBuf {
         self.root_project.join("fuzz")
@@ -260,40 +246,6 @@ fn find_package() -> Result<path::PathBuf, Error> {
         if !dir.pop() { break; }
     }
     Err("could not find a cargo project".into())
-}
-
-
-/// Build or rebuild libFuzzer (rebuilds only if the compiler version changed)
-///
-/// We can't just use libFuzzer as a dependency since libgcc will
-/// get compiled with sanitizer support. RUSTFLAGS does not discriminate
-/// between build dependencies and regular ones.
-///
-/// https://github.com/rust-lang/cargo/issues/3739
-fn rebuild_libfuzzer() -> Result<(), Box<error::Error>> {
-    if let Err(_) = env::set_current_dir("./libfuzzer") {
-        let mut git = process::Command::new("git");
-        let mut cmd = git.arg("clone")
-                         .arg("https://github.com/rust-fuzz/libfuzzer-sys.git")
-                         .arg("libfuzzer");
-        let result = cmd.spawn()?.wait()?;
-        if !result.success() {
-            return Err("Failed to clone libfuzzer-sys".into())
-        }
-        env::set_current_dir("./libfuzzer")?;
-    }
-    let mut cmd = process::Command::new("cargo");
-    cmd.arg("build")
-       .arg("--release")
-       .spawn()?
-       .wait()?;
-
-    let result = cmd.spawn()?.wait()?;
-    if !result.success() {
-        return Err("Failed to build libfuzzer-sys".into())
-    }
-    env::set_current_dir("..")
-        .map_err(|e| e.into())
 }
 
 #[cfg(unix)]
