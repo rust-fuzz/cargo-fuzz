@@ -6,89 +6,47 @@
 // copied, modified, or distributed except according to those terms.
 
 extern crate cargo_metadata;
-extern crate docopt;
+extern crate clap;
 extern crate rustc_serialize;
 extern crate term;
 
 use cargo_metadata::{metadata, Package};
-use docopt::Docopt;
+use clap::{App, Arg, SubCommand, ArgMatches, AppSettings};
 use std::{env, error, fs, io, path, process};
 use std::io::Write;
 
 mod utils;
 
-const USAGE: &'static str = "
-Cargo Fuzz
-
-Usage:
-  cargo fuzz --init
-  cargo fuzz --fuzz-target TARGET
-  cargo fuzz --add TARGET
-  cargo fuzz --list
-  cargo fuzz (-h | --help)
-
-Options:
-  -h --help              Show this screen.
-  --init                 Initialize fuzz folder
-  --fuzz-target TARGET   Run with given fuzz target in fuzz/fuzzers
-  --add TARGET           Add a new fuzz target
-  --list                 List the available fuzz targets
-";
-
-#[derive(Debug, RustcDecodable)]
-struct Args {
-    flag_init: bool,
-    flag_add: Option<String>,
-    flag_fuzz_target: Option<String>,
-    flag_list: bool,
-}
-
 fn main() {
-    let args: Args = Docopt::new(USAGE)
-                            .and_then(|d| d.decode())
-                            .unwrap_or_else(|e| e.exit());
+    let app = App::new("cargo-fuzz")
+        .version(option_env!("CARGO_PKG_VERSION").unwrap_or("0.0.0"))
+        .about(option_env!("CARGO_PKG_DESCRIPTION").unwrap_or(""))
+        .setting(AppSettings::SubcommandRequiredElseHelp)
+        .setting(AppSettings::GlobalVersion)
+        // cargo passes in the subcommand name to the invoked executable. Use a hidden, optional
+        // positional argument to deal with it?
+        .arg(Arg::with_name("dummy").possible_value("fuzz").required(false).hidden(true))
+        .subcommand(SubCommand::with_name("init").about("Initialize the fuzz folder"))
+        .subcommand(SubCommand::with_name("run").about("Run the fuzz target in fuzz/fuzzers")
+            .setting(AppSettings::TrailingVarArg)
+            .arg(Arg::with_name("TARGET").required(true))
+            .arg(Arg::with_name("ARGS").multiple(true))
+        )
+        .subcommand(SubCommand::with_name("add").about("Add a new fuzz target")
+                    .arg(Arg::with_name("TARGET").required(true)))
+        .subcommand(SubCommand::with_name("list").about("List all fuzz targets"));
+    let args = app.get_matches();
 
-    let result = if args.flag_init {
-        init_fuzz()
-    } else if let Some(target) = args.flag_add {
-        add_target(target)
-    } else if let Some(target) = args.flag_fuzz_target {
-        let result = run_target(target);
-        if let Ok(success) = result {
-            if success {
-                // Can this ever happen?
-                Ok(())
-            } else {
-                utils::print_message("Fuzzing found errors!", term::color::YELLOW);
-                process::exit(-1)
-            }
-        } else {
-            result.map(|_| ())
-        }
-    } else if args.flag_list {
-        list_fuzz_targets()
-            .map(|_| ())
-    } else {
-        utils::write_to_stderr("Invalid arguments. Usage:", Some(USAGE));
-        return;
-    };
-    if let Err(error) = result {
-        utils::write_to_stderr(error.description(), None);
-    }
-}
-
-fn list_fuzz_targets() -> Result<(), Box<error::Error>> {
-    if !path::Path::new("./fuzz").is_dir() {
-        return Err("Fuzzing crate has not been initialized. Run `cargo fuzz --init` to initialize it.".into());
-    }
-
-    env::set_current_dir("./fuzz")?;
-    let package = get_package();
-    for target in &package.targets {
-        utils::print_message(target.name.as_str(), term::color::GREEN);
-    }
-
-    Ok(())
+    ::std::process::exit(match args.subcommand() {
+        ("init", _) => init_fuzz(),
+        ("add", matches) => add_target(matches.expect("arguments present")),
+        ("list", _) => list_targets(),
+        ("run", matches) => exec_target(matches.expect("arguments present")),
+        (s, _) => panic!("unimplemented subcommand {}!", s),
+    }.map(|_| 0).unwrap_or_else(|err| {
+        utils::write_to_stderr(&format!("{}", err), None);
+        1
+    }));
 }
 
 /// Create all the files and folders we need to run
@@ -134,6 +92,19 @@ artifacts
     dummy_target(&mut script, &me)
 }
 
+
+fn list_targets() -> Result<(), Box<error::Error>> {
+    if !path::Path::new("./fuzz").is_dir() {
+        return Err("Fuzzing has not been initialized. Run `cargo fuzz init` first.".into());
+    }
+    env::set_current_dir("./fuzz")?;
+    let package = get_package();
+    for target in &package.targets {
+        println!("{}", target.name);
+    }
+    Ok(())
+}
+
 /// Returns metadata for the Cargo package in the current directory
 fn get_package() -> Package {
     // todo error handling
@@ -163,8 +134,11 @@ pub extern fn go(data: &[u8]) {{
 }
 
 /// Add a new fuzz target script with a given name
-fn add_target(target: String) -> Result<(), Box<error::Error>> {
-    let target_file = format!("fuzz/fuzzers/{}.rs", target);
+fn add_target<'a>(args: &ArgMatches<'a>) -> Result<(), Box<error::Error>> {
+    let target: String = args.value_of_os("TARGET").expect("TARGET is required").to_os_string()
+        .into_string().map_err(|_| "TARGET must be valid unicode")?;
+    let components: &[&path::Path] = &["fuzz".as_ref(), "fuzzers".as_ref(), target.as_ref()];
+    let target_file = components.iter().collect::<path::PathBuf>();
     let mut script = fs::File::create(path::Path::new(&target_file))?;
     let me = get_package();
     dummy_target(&mut script, &me)?;
@@ -223,7 +197,13 @@ fn make_dir_if_not_exist(dir: &str) -> Result<(), io::Error> {
     Ok(())
 }
 /// Fuzz a given fuzz target
-fn run_target(target: String) -> Result<bool, Box<error::Error>> {
+fn exec_target<'a>(args: &ArgMatches<'a>) -> Result<(), Box<error::Error>> {
+    let target: String = args.value_of_os("TARGET").expect("TARGET is required").to_os_string()
+        .into_string().map_err(|_| "TARGET must be valid unicode")?;
+    let exec_args = args.values_of_os("ARGS");
+
+    let target_triple = "x86_64-unknown-linux-gnu";
+
     env::set_current_dir("./fuzz")?;
     rebuild_libfuzzer()?;
     let mut flags = env::var("RUSTFLAGS").unwrap_or("".into());
@@ -237,7 +217,7 @@ fn run_target(target: String) -> Result<bool, Box<error::Error>> {
        .arg("--bin")
        .arg(&target)
        .arg("--target")
-       .arg("x86_64-unknown-linux-gnu") // won't pass rustflags to build scripts
+       .arg(target_triple) // won't pass rustflags to build scripts
        .arg("--")
        .arg("-L")
        .arg("libfuzzer/target/release")
@@ -252,11 +232,26 @@ fn run_target(target: String) -> Result<bool, Box<error::Error>> {
     make_dir_if_not_exist("artifacts")?;
 
     // can't use cargo run since we can't pass -L args to it
-    let path = format!("target/debug/{}", target);
-    let mut run_cmd = process::Command::new(path);
+    let components: &[&path::Path] = &["target".as_ref(),
+                                       target_triple.as_ref(),
+                                       "debug".as_ref(),
+                                       target.as_ref()];
+    let mut run_cmd = process::Command::new(components.iter().collect::<path::PathBuf>());
     run_cmd.arg("-artifact_prefix=artifacts/")
-           .arg("corpus") // must be last arg
            .env("ASAN_OPTIONS", "detect_odr_violation=0");
-    let result = run_cmd.spawn()?.wait()?;
-    Ok(result.success())
+    exec_args.map(|args| for arg in args { run_cmd.arg(arg); });
+    run_cmd.arg("corpus"); // must be last arg
+    exec_cmd(&mut run_cmd)?;
+    Ok(())
+}
+
+#[cfg(unix)]
+fn exec_cmd(cmd: &mut process::Command) -> ::std::io::Result<process::ExitStatus> {
+    use std::os::unix::process::CommandExt;
+    Err(cmd.exec())
+}
+
+#[cfg(not(unix))]
+fn exec_cmd(cmd: &mut process::Command) -> ::std::io::Result<process::ExitStatus> {
+    cmd.status()
 }
