@@ -15,6 +15,8 @@ use clap::{App, Arg, SubCommand, ArgMatches, AppSettings};
 use std::{env, error, fs, io, path, process};
 use std::io::Write;
 
+#[macro_use]
+mod templates;
 mod utils;
 
 fn main() {
@@ -59,34 +61,10 @@ fn init_fuzz() -> Result<(), Box<error::Error>> {
     fs::create_dir("./fuzz/fuzzers")?;
 
     let mut cargo = fs::File::create(path::Path::new("./fuzz/Cargo.toml"))?;
-
-write!(cargo, r#"
-[package]
-name = "{0}-fuzz"
-version = "0.0.1"
-authors = ["Automatically generated"]
-publish = false
-
-[dependencies.{0}]
-path = ".."
-
-# Prevent this from interfering with workspaces
-[workspace]
-members = ["."]
-
-[[bin]]
-name = "fuzzer_script_1"
-path = "fuzzers/fuzzer_script_1.rs"
-"#, me.name)?;
+    cargo.write_fmt(toml_template!(me.name))?;
 
     let mut ignore = fs::File::create(path::Path::new("./fuzz/.gitignore"))?;
-
-write!(ignore, r#"
-target
-libfuzzer
-corpus
-artifacts
-"#)?;
+    ignore.write_fmt(gitignore_template!())?;
 
     let mut script = fs::File::create(path::Path::new("./fuzz/fuzzers/fuzzer_script_1.rs"))?;
     dummy_target(&mut script, &me)
@@ -124,13 +102,7 @@ fn link_to_lib(pkg: &Package) -> Option<String> {
 
 /// Create a dummy fuzz target script at the given path
 fn dummy_target(script: &mut fs::File, pkg: &Package) -> Result<(), Box<error::Error>> {
-write!(script, r#"#![no_main]
-extern crate libfuzzer_sys;
-{}
-#[export_name="rust_fuzzer_test_input"]
-pub extern fn go(data: &[u8]) {{
-    // fuzzed code goes here
-}}"#, link_to_lib(pkg).unwrap_or(String::new())).map_err(|e| e.into())
+    Ok(script.write_fmt(target_template!(link_to_lib(pkg)))?)
 }
 
 /// Add a new fuzz target script with a given name
@@ -144,13 +116,7 @@ fn add_target<'a>(args: &ArgMatches<'a>) -> Result<(), Box<error::Error>> {
     dummy_target(&mut script, &me)?;
 
     let mut cargo = fs::OpenOptions::new().append(true).open(path::Path::new("./fuzz/Cargo.toml"))?;
-
-write!(cargo, r#"
-[[bin]]
-name = "{0}"
-path = "fuzzers/{0}.rs"
-"#, target).map_err(|e| e.into())
-
+    Ok(cargo.write_fmt(toml_bin_template!(target))?)
 }
 
 /// Build or rebuild libFuzzer (rebuilds only if the compiler version changed)
