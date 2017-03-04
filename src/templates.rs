@@ -16,10 +16,6 @@ path = ".."
 # Prevent this from interfering with workspaces
 [workspace]
 members = ["."]
-
-[[bin]]
-name = "fuzzer_script_1"
-path = "fuzzers/fuzzer_script_1.rs"
 "##, $name)
     }
 }
@@ -49,11 +45,11 @@ macro_rules! target_template {
     ($name: expr) => {
 format_args!(r##"#![no_main]
 extern crate libfuzzer_sys;
-{}
+extern crate {};
 #[export_name="rust_fuzzer_test_input"]
 pub extern fn go(data: &[u8]) {{
     // fuzzed code goes here
 }}
-"##, $name.unwrap_or(String::new()))
+"##, $name)
     }
 }

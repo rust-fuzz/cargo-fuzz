@@ -5,15 +5,14 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-extern crate cargo_metadata;
+extern crate toml;
 extern crate clap;
-extern crate rustc_serialize;
 extern crate term;
 
-use cargo_metadata::{metadata, Package};
 use clap::{App, Arg, SubCommand, ArgMatches, AppSettings};
-use std::{env, error, fs, io, path, process};
+use std::{env, error, fs, path, process};
 use std::io::Write;
+use std::io::Read;
 
 #[macro_use]
 mod templates;
@@ -40,10 +39,12 @@ fn main() {
     let args = app.get_matches();
 
     ::std::process::exit(match args.subcommand() {
-        ("init", _) => init_fuzz(),
-        ("add", matches) => add_target(matches.expect("arguments present")),
-        ("list", _) => list_targets(),
-        ("run", matches) => exec_target(matches.expect("arguments present")),
+        ("init", _) => FuzzProject::init().map(|_| ()),
+        ("add", matches) =>
+            FuzzProject::new().and_then(|p| p.add_target(matches.expect("arguments present"))),
+        ("list", _) => FuzzProject::new().and_then(|p| p.list_targets()),
+        ("run", matches) =>
+            FuzzProject::new().and_then(|p| p.exec_target(matches.expect("arguments present"))),
         (s, _) => panic!("unimplemented subcommand {}!", s),
     }.map(|_| 0).unwrap_or_else(|err| {
         utils::write_to_stderr(&format!("{}", err), None);
@@ -51,73 +52,216 @@ fn main() {
     }));
 }
 
-/// Create all the files and folders we need to run
-///
-/// This will not clone libfuzzer-sys
-fn init_fuzz() -> Result<(), Box<error::Error>> {
-    let me = get_package();
+type Error = Box<error::Error>;
 
-    fs::create_dir("./fuzz")?;
-    fs::create_dir("./fuzz/fuzzers")?;
-
-    let mut cargo = fs::File::create(path::Path::new("./fuzz/Cargo.toml"))?;
-    cargo.write_fmt(toml_template!(me.name))?;
-
-    let mut ignore = fs::File::create(path::Path::new("./fuzz/.gitignore"))?;
-    ignore.write_fmt(gitignore_template!())?;
-
-    let mut script = fs::File::create(path::Path::new("./fuzz/fuzzers/fuzzer_script_1.rs"))?;
-    dummy_target(&mut script, &me)
+struct FuzzProject {
+    /// Path to the root cargo project
+    ///
+    /// Not the project with fuzz targets, but the project being fuzzed
+    root_project: path::PathBuf,
+    targets: Vec<String>,
 }
 
-
-fn list_targets() -> Result<(), Box<error::Error>> {
-    if !path::Path::new("./fuzz").is_dir() {
-        return Err("Fuzzing has not been initialized. Run `cargo fuzz init` first.".into());
+impl FuzzProject {
+    fn new() -> Result<Self, Error> {
+        let mut project = FuzzProject {
+            root_project: find_package()?,
+            targets: Vec::new()
+        };
+        let manifest = project.manifest()?;
+        if !is_fuzz_manifest(&manifest) {
+            return Err(format!("manifest `{:?}` does not look a cargo-fuzz manifest. \
+                                Add following lines to override:\n\
+                                [package.metadata]\ncargo-fuzz = true",
+                                project.manifest_path()).into());
+        }
+        project.targets = collect_targets(&manifest);
+        Ok(project)
     }
-    env::set_current_dir("./fuzz")?;
-    let package = get_package();
-    for target in &package.targets {
-        println!("{}", target.name);
+
+    /// Create the fuzz project structure
+    ///
+    /// This will not clone libfuzzer-sys
+    fn init() -> Result<Self, Error> {
+        let project = FuzzProject {
+            root_project: find_package()?,
+            targets: Vec::new(),
+        };
+        let fuzz_project = project.path();
+        // TODO: check if the project is already initialized
+        fs::create_dir(&fuzz_project)?;
+        fs::create_dir(fuzz_project.join("fuzzers"))?;
+
+        let mut cargo = fs::File::create(fuzz_project.join("Cargo.toml"))?;
+        cargo.write_fmt(toml_template!(project.root_project_name()?))?;
+
+        let mut ignore = fs::File::create(fuzz_project.join(".gitignore"))?;
+        ignore.write_fmt(gitignore_template!())?;
+
+        project.create_target_template("fuzzer_script_1")?;
+        Ok(project)
     }
-    Ok(())
+
+
+    fn list_targets(&self) -> Result<(), Error> {
+        for bin in &self.targets {
+            utils::print_message(bin, term::color::GREEN);
+        }
+        Ok(())
+    }
+
+    fn add_target<'a>(&self, args: &ArgMatches<'a>) -> Result<(), Error> {
+        let target: String = args.value_of_os("TARGET").expect("TARGET is required").to_os_string()
+            .into_string().map_err(|_| "TARGET must be valid unicode")?;
+        self.create_target_template(&target)
+    }
+
+    /// Add a new fuzz target script with a given name
+    fn create_target_template<'a>(&self, target: &str) -> Result<(), Error> {
+        let target_path = self.target_path(target);
+        let mut script = fs::File::create(path::Path::new(&target_path))?;
+        script.write_fmt(target_template!(self.root_project_name()?.replace("-", "_")))?;
+
+        let mut cargo = fs::OpenOptions::new().append(true)
+            .open(self.manifest_path())?;
+        Ok(cargo.write_fmt(toml_bin_template!(target))?)
+    }
+
+    /// Fuzz a given fuzz target
+    fn exec_target<'a>(&self, args: &ArgMatches<'a>) -> Result<(), Error> {
+        let target: String = args.value_of_os("TARGET").expect("TARGET is required").to_os_string()
+            .into_string().map_err(|_| "TARGET must be valid unicode")?;
+        let exec_args = args.values_of_os("ARGS");
+        let target_triple = "x86_64-unknown-linux-gnu";
+
+        env::set_current_dir(self.path())?;
+        rebuild_libfuzzer()?;
+        let mut flags = env::var("RUSTFLAGS").unwrap_or("".into());
+        if !flags.is_empty() {
+            flags.push(' ');
+        }
+        flags.push_str("-Cpasses=sancov -Cllvm-args=-sanitizer-coverage-level=3 -Zsanitizer=address -Cpanic=abort");
+        let mut cmd = process::Command::new("cargo");
+        cmd.arg("rustc")
+           .arg("--verbose")
+           .arg("--bin")
+           .arg(&target)
+           .arg("--target")
+           .arg(target_triple) // won't pass rustflags to build scripts
+           .arg("--")
+           .arg("-L")
+           .arg("libfuzzer/target/release")
+           .env("RUSTFLAGS", &flags);
+
+        let result = cmd.spawn()?.wait()?;
+        if !result.success() {
+            return Err("Failed to build fuzz target".into())
+        }
+
+        fs::create_dir_all("corpus")?;
+        fs::create_dir_all("artifacts")?;
+
+        // can't use cargo run since we can't pass -L args to it
+        let components: &[&path::Path] = &["target".as_ref(),
+                                           target_triple.as_ref(),
+                                           "debug".as_ref(),
+                                           target.as_ref()];
+        let mut run_cmd = process::Command::new(components.iter().collect::<path::PathBuf>());
+        run_cmd.arg("-artifact_prefix=artifacts/")
+               .env("ASAN_OPTIONS", "detect_odr_violation=0");
+        exec_args.map(|args| for arg in args { run_cmd.arg(arg); });
+        run_cmd.arg("corpus"); // must be last arg
+        exec_cmd(&mut run_cmd)?;
+        Ok(())
+    }
+
+
+    fn path(&self) -> path::PathBuf {
+        self.root_project.join("fuzz")
+    }
+
+    fn manifest_path(&self) -> path::PathBuf {
+        self.path().join("Cargo.toml")
+    }
+
+    fn target_path(&self, target: &str) -> path::PathBuf {
+        let mut root = self.path();
+        root.push("fuzzers");
+        root.push(target);
+        root.set_extension("rs");
+        root
+    }
+
+    fn manifest(&self) -> Result<toml::Value, Error> {
+        let filename = self.manifest_path();
+        let mut file = fs::File::open(&filename)?;
+        let mut data = Vec::new();
+        file.read_to_end(&mut data)?;
+        Ok(toml::from_slice(&data)?)
+    }
+
+    fn root_project_name(&self) -> Result<String, Error> {
+        let filename = self.root_project.join("Cargo.toml");
+        let mut file = fs::File::open(&filename)?;
+        let mut data = Vec::new();
+        file.read_to_end(&mut data)?;
+        let value: toml::Value = toml::from_slice(&data)?;
+        let name = value.as_table().and_then(|v| v.get("package"))
+                                   .and_then(toml::Value::as_table)
+                                   .and_then(|v| v.get("name"))
+                                   .and_then(toml::Value::as_str);
+        if let Some(name) = name {
+            Ok(String::from(name))
+        } else {
+            Err(format!("{:?} (package.name) is malformed", filename).into())
+        }
+    }
 }
 
-/// Returns metadata for the Cargo package in the current directory
-fn get_package() -> Package {
-    // todo error handling
-    let meta = metadata(None).unwrap();
-    let mut p = env::current_dir().unwrap();
-    p.push("Cargo.toml");
-    let p = p.to_str().unwrap();
-    meta.packages.into_iter().find(|package| package.manifest_path == p).unwrap()
+fn collect_targets(value: &toml::Value) -> Vec<String> {
+    let bins = value.as_table().and_then(|v| v.get("bin"))
+                               .and_then(toml::Value::as_array);
+    if let Some(bins) = bins {
+        bins.iter().map(|bin|
+            bin.as_table().and_then(|v| v.get("name")).and_then(toml::Value::as_str)
+        ).filter_map(|name| name.map(|v| String::from(v))).collect()
+    } else {
+        Vec::new()
+    }
 }
 
-/// If the package contains a library target, generate an `extern crate` line to link to it.
-fn link_to_lib(pkg: &Package) -> Option<String> {
-    pkg.targets.iter()
-               .find(|target| target.kind.iter().any(|k| k == "lib"))
-               .map(|target| format!("extern crate {};\n", target.name.replace("-", "_")))
+fn is_fuzz_manifest(value: &toml::Value) -> bool {
+    let is_fuzz = value.as_table().and_then(|v| v.get("package"))
+                                  .and_then(toml::Value::as_table)
+                                  .and_then(|v| v.get("metadata"))
+                                  .and_then(toml::Value::as_table)
+                                  .and_then(|v| v.get("cargo-fuzz"))
+                                  .and_then(toml::Value::as_bool);
+    is_fuzz == Some(true)
 }
 
-/// Create a dummy fuzz target script at the given path
-fn dummy_target(script: &mut fs::File, pkg: &Package) -> Result<(), Box<error::Error>> {
-    Ok(script.write_fmt(target_template!(link_to_lib(pkg)))?)
+/// Returns the path for the first found non-fuzz Cargo package
+fn find_package() -> Result<path::PathBuf, Error> {
+    let mut dir = env::current_dir()?;
+    let mut data = Vec::new();
+    loop {
+        let manifest_path = dir.join("Cargo.toml");
+        match fs::File::open(manifest_path) {
+            Err(_) => {},
+            Ok(mut f) => {
+                f.read_to_end(&mut data)?;
+                let value: toml::Value = toml::from_slice(&data)?;
+                if !is_fuzz_manifest(&value) {
+                    // Not a cargo-fuzz project => must be a proper cargo project :)
+                    return Ok(dir);
+                }
+            }
+        }
+        if !dir.pop() { break; }
+    }
+    Err("could not find a cargo project".into())
 }
 
-/// Add a new fuzz target script with a given name
-fn add_target<'a>(args: &ArgMatches<'a>) -> Result<(), Box<error::Error>> {
-    let target: String = args.value_of_os("TARGET").expect("TARGET is required").to_os_string()
-        .into_string().map_err(|_| "TARGET must be valid unicode")?;
-    let components: &[&path::Path] = &["fuzz".as_ref(), "fuzzers".as_ref(), target.as_ref()];
-    let target_file = components.iter().collect::<path::PathBuf>();
-    let mut script = fs::File::create(path::Path::new(&target_file))?;
-    let me = get_package();
-    dummy_target(&mut script, &me)?;
-
-    let mut cargo = fs::OpenOptions::new().append(true).open(path::Path::new("./fuzz/Cargo.toml"))?;
-    Ok(cargo.write_fmt(toml_bin_template!(target))?)
-}
 
 /// Build or rebuild libFuzzer (rebuilds only if the compiler version changed)
 ///
@@ -150,65 +294,6 @@ fn rebuild_libfuzzer() -> Result<(), Box<error::Error>> {
     }
     env::set_current_dir("..")
         .map_err(|e| e.into())
-}
-
-fn make_dir_if_not_exist(dir: &str) -> Result<(), io::Error> {
-    if let Err(k) = fs::create_dir(dir) {
-        if k.kind() == io::ErrorKind::AlreadyExists {
-            // do nothing
-        } else {
-            return Err(k);
-        }
-    }
-    Ok(())
-}
-/// Fuzz a given fuzz target
-fn exec_target<'a>(args: &ArgMatches<'a>) -> Result<(), Box<error::Error>> {
-    let target: String = args.value_of_os("TARGET").expect("TARGET is required").to_os_string()
-        .into_string().map_err(|_| "TARGET must be valid unicode")?;
-    let exec_args = args.values_of_os("ARGS");
-
-    let target_triple = "x86_64-unknown-linux-gnu";
-
-    env::set_current_dir("./fuzz")?;
-    rebuild_libfuzzer()?;
-    let mut flags = env::var("RUSTFLAGS").unwrap_or("".into());
-    if !flags.is_empty() {
-        flags.push(' ');
-    }
-    flags.push_str("-Cpasses=sancov -Cllvm-args=-sanitizer-coverage-level=3 -Zsanitizer=address -Cpanic=abort");
-    let mut cmd = process::Command::new("cargo");
-    cmd.arg("rustc")
-       .arg("--verbose")
-       .arg("--bin")
-       .arg(&target)
-       .arg("--target")
-       .arg(target_triple) // won't pass rustflags to build scripts
-       .arg("--")
-       .arg("-L")
-       .arg("libfuzzer/target/release")
-       .env("RUSTFLAGS", &flags);
-
-    let result = cmd.spawn()?.wait()?;
-    if !result.success() {
-        return Err("Failed to build fuzz target".into())
-    }
-
-    make_dir_if_not_exist("corpus")?;
-    make_dir_if_not_exist("artifacts")?;
-
-    // can't use cargo run since we can't pass -L args to it
-    let components: &[&path::Path] = &["target".as_ref(),
-                                       target_triple.as_ref(),
-                                       "debug".as_ref(),
-                                       target.as_ref()];
-    let mut run_cmd = process::Command::new(components.iter().collect::<path::PathBuf>());
-    run_cmd.arg("-artifact_prefix=artifacts/")
-           .env("ASAN_OPTIONS", "detect_odr_violation=0");
-    exec_args.map(|args| for arg in args { run_cmd.arg(arg); });
-    run_cmd.arg("corpus"); // must be last arg
-    exec_cmd(&mut run_cmd)?;
-    Ok(())
 }
 
 #[cfg(unix)]
