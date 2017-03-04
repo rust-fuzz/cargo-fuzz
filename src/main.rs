@@ -8,15 +8,24 @@
 extern crate toml;
 extern crate clap;
 extern crate term;
+#[macro_use]
+extern crate error_chain;
 
 use clap::{App, Arg, SubCommand, ArgMatches, AppSettings};
-use std::{env, error, fs, path, process};
+use std::{env, fs, path, process};
 use std::io::Write;
 use std::io::Read;
 
 #[macro_use]
 mod templates;
 mod utils;
+
+error_chain! {
+    foreign_links {
+        Toml(toml::de::Error);
+        Io(::std::io::Error);
+    }
+}
 
 fn main() {
     let app = App::new("cargo-fuzz")
@@ -47,12 +56,10 @@ fn main() {
             FuzzProject::new().and_then(|p| p.exec_target(matches.expect("arguments present"))),
         (s, _) => panic!("unimplemented subcommand {}!", s),
     }.map(|_| 0).unwrap_or_else(|err| {
-        utils::write_to_stderr(&format!("{}", err), None);
+        utils::report_error(err);
         1
     }));
 }
-
-type Error = Box<error::Error>;
 
 struct FuzzProject {
     /// Path to the root cargo project
@@ -63,7 +70,7 @@ struct FuzzProject {
 }
 
 impl FuzzProject {
-    fn new() -> Result<Self, Error> {
+    fn new() -> Result<Self> {
         let mut project = FuzzProject {
             root_project: find_package()?,
             targets: Vec::new()
@@ -82,7 +89,7 @@ impl FuzzProject {
     /// Create the fuzz project structure
     ///
     /// This will not clone libfuzzer-sys
-    fn init() -> Result<Self, Error> {
+    fn init() -> Result<Self> {
         let project = FuzzProject {
             root_project: find_package()?,
             targets: Vec::new(),
@@ -98,25 +105,28 @@ impl FuzzProject {
         let mut ignore = fs::File::create(fuzz_project.join(".gitignore"))?;
         ignore.write_fmt(gitignore_template!())?;
 
-        project.create_target_template("fuzzer_script_1")?;
+        const TARGET: &'static str = "fuzzer_script_1";
+        project.create_target_template(TARGET)
+               .chain_err(|| format!("could not create template file for target {:?}", TARGET))?;
         Ok(project)
     }
 
-    fn list_targets(&self) -> Result<(), Error> {
+    fn list_targets(&self) -> Result<()> {
         for bin in &self.targets {
             utils::print_message(bin, term::color::GREEN);
         }
         Ok(())
     }
 
-    fn add_target<'a>(&self, args: &ArgMatches<'a>) -> Result<(), Error> {
+    fn add_target<'a>(&self, args: &ArgMatches<'a>) -> Result<()> {
         let target: String = args.value_of_os("TARGET").expect("TARGET is required").to_os_string()
             .into_string().map_err(|_| "TARGET must be valid unicode")?;
         self.create_target_template(&target)
+            .chain_err(|| format!("could not create template file for target {:?}", target))
     }
 
     /// Add a new fuzz target script with a given name
-    fn create_target_template<'a>(&self, target: &str) -> Result<(), Error> {
+    fn create_target_template<'a>(&self, target: &str) -> Result<()> {
         let target_path = self.target_path(target);
         let mut script = fs::File::create(path::Path::new(&target_path))?;
         script.write_fmt(target_template!(self.root_project_name()?.replace("-", "_")))?;
@@ -127,7 +137,7 @@ impl FuzzProject {
     }
 
     /// Fuzz a given fuzz target
-    fn exec_target<'a>(&self, args: &ArgMatches<'a>) -> Result<(), Error> {
+    fn exec_target<'a>(&self, args: &ArgMatches<'a>) -> Result<()> {
         let target: String = args.value_of_os("TARGET").expect("TARGET is required").to_os_string()
             .into_string().map_err(|_| "TARGET must be valid unicode")?;
         let exec_args = args.values_of_os("ARGS");
@@ -141,6 +151,9 @@ impl FuzzProject {
         flags.push_str("-Cpasses=sancov -Cllvm-args=-sanitizer-coverage-level=3 -Zsanitizer=address -Cpanic=abort");
         let mut cmd = process::Command::new("cargo");
 
+        fs::create_dir_all("corpus")?;
+        fs::create_dir_all("artifacts")?;
+
         cmd.env("RUSTFLAGS", flags)
            .arg("run")
            .arg("--verbose")
@@ -149,16 +162,12 @@ impl FuzzProject {
            .arg("--target")
            // won't pass rustflags to build scripts
            .arg(target_triple)
-           .arg("--");
-
-        fs::create_dir_all("corpus")?;
-        fs::create_dir_all("artifacts")?;
-
-        cmd.arg("-artifact_prefix=artifacts/")
+           .arg("--")
+           .arg("-artifact_prefix=artifacts/")
            .env("ASAN_OPTIONS", "detect_odr_violation=0");
         exec_args.map(|args| for arg in args { cmd.arg(arg); });
         cmd.arg("corpus"); // must be last arg
-        exec_cmd(&mut cmd)?;
+        exec_cmd(&mut cmd).chain_err(|| format!("could not execute command: {:?}", cmd))?;
         Ok(())
     }
 
@@ -178,15 +187,19 @@ impl FuzzProject {
         root
     }
 
-    fn manifest(&self) -> Result<toml::Value, Error> {
+    fn manifest(&self) -> Result<toml::Value> {
         let filename = self.manifest_path();
-        let mut file = fs::File::open(&filename)?;
+        let mut file = fs::File::open(&filename).chain_err(||
+            format!("could not read the manifest file: {:?}", filename)
+        )?;
         let mut data = Vec::new();
         file.read_to_end(&mut data)?;
-        Ok(toml::from_slice(&data)?)
+        toml::from_slice(&data).chain_err(||
+            format!("could not decode the manifest file at {:?}", filename)
+        )
     }
 
-    fn root_project_name(&self) -> Result<String, Error> {
+    fn root_project_name(&self) -> Result<String> {
         let filename = self.root_project.join("Cargo.toml");
         let mut file = fs::File::open(&filename)?;
         let mut data = Vec::new();
@@ -227,16 +240,19 @@ fn is_fuzz_manifest(value: &toml::Value) -> bool {
 }
 
 /// Returns the path for the first found non-fuzz Cargo package
-fn find_package() -> Result<path::PathBuf, Error> {
+fn find_package() -> Result<path::PathBuf> {
     let mut dir = env::current_dir()?;
     let mut data = Vec::new();
     loop {
         let manifest_path = dir.join("Cargo.toml");
-        match fs::File::open(manifest_path) {
+        match fs::File::open(&manifest_path) {
             Err(_) => {},
             Ok(mut f) => {
                 f.read_to_end(&mut data)?;
-                let value: toml::Value = toml::from_slice(&data)?;
+                let value: toml::Value = toml::from_slice(&data)
+                    .chain_err(||
+                        format!("could not decode the manifest file at {:?}", manifest_path)
+                    )?;
                 if !is_fuzz_manifest(&value) {
                     // Not a cargo-fuzz project => must be a proper cargo project :)
                     return Ok(dir);
@@ -249,12 +265,12 @@ fn find_package() -> Result<path::PathBuf, Error> {
 }
 
 #[cfg(unix)]
-fn exec_cmd(cmd: &mut process::Command) -> ::std::io::Result<process::ExitStatus> {
+fn exec_cmd(cmd: &mut process::Command) -> Result<process::ExitStatus> {
     use std::os::unix::process::CommandExt;
-    Err(cmd.exec())
+    Err(cmd.exec().into())
 }
 
 #[cfg(not(unix))]
-fn exec_cmd(cmd: &mut process::Command) -> ::std::io::Result<process::ExitStatus> {
+fn exec_cmd(cmd: &mut process::Command) -> Result<process::ExitStatus> {
     cmd.status()
 }

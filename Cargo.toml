@@ -7,7 +7,7 @@ description = "Simple wrapper around libFuzzer"
 repository = "https://github.com/rust-fuzz/cargo-fuzz/"
 
 [dependencies]
-cargo_metadata  = "0.1.2"
 toml            = "0.3"
 term            = "0.4.5"
 clap            = "2.20.5"
+error-chain     = "0.10"
