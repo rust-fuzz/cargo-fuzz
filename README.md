@@ -57,4 +57,5 @@ Then, wait till it finds something!
  - quick-xml: [arithmetic overflow](https://github.com/tafia/quick-xml/issues/53)
  - svgparser: [arithmetic overflow, bound checking panic, incorrect result](https://github.com/RazrFalcon/libsvgparser/commit/4742f16e834445a682a0a4db62600d275a457390), [endless loop](https://github.com/RazrFalcon/libsvgparser/commit/c55d9a7d4d1e83f405be2e7bfddea89f579f6fc9)
  - num: [panic on `BigInt` parsing](https://github.com/rust-num/num/issues/268)
-- [httpdate panics](https://pyfisch.org/blog/fuzzing-all-crates/): "no character boundary" and arithmetic overflow
+ - [httpdate panics](https://pyfisch.org/blog/fuzzing-all-crates/): "no character boundary" and arithmetic overflow
+ - vobsub: [invalid slice 1](https://github.com/emk/subtitles-rs/commit/20e430105b1fc02aa135788ba150a0dd49a7d1ef), [2](https://github.com/emk/subtitles-rs/commit/46df766dd22cb6a04a534611f08c23903e58746c), [3](https://github.com/emk/subtitles-rs/commit/f2f5309aa8173dfec4bb5816950d718a1ac669c2), [shift overflow](https://github.com/emk/subtitles-rs/commit/5d3364b96389d90deac0f024a57660951b7e1dd6), [arithmetic overflow](https://github.com/emk/subtitles-rs/commit/3afdb7e1c5e786e88653253243648dd9d49983f2)
