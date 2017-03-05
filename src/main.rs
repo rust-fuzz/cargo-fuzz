@@ -274,5 +274,5 @@ fn exec_cmd(cmd: &mut process::Command) -> Result<process::ExitStatus> {
 
 #[cfg(not(unix))]
 fn exec_cmd(cmd: &mut process::Command) -> Result<process::ExitStatus> {
-    cmd.status()
+    cmd.status().map_err(|e| e.into())
 }
