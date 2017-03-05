@@ -130,7 +130,7 @@ impl FuzzProject {
     /// Add a new fuzz target script with a given name
     fn create_target_template<'a>(&self, target: &str) -> Result<()> {
         let target_path = self.target_path(target);
-        let mut script = fs::File::create(path::Path::new(&target_path))?;
+        let mut script = fs::OpenOptions::new().write(true).create_new(true).open(&target_path)?;
         script.write_fmt(target_template!(self.root_project_name()?.replace("-", "_")))?;
 
         let mut cargo = fs::OpenOptions::new().append(true)
