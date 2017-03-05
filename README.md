@@ -55,3 +55,4 @@ Then, wait till it finds something!
  - hyper: [arithmetic overflow](https://github.com/hyperium/hyper/pull/1076)
  - libpnet: [arithmetic overflow](https://github.com/libpnet/libpnet/pull/250)
  - quick-xml: [arithmetic overflow](https://github.com/tafia/quick-xml/issues/53)
+ - svgparser: [arithmetic overflow, bound checking panic, incorrect result](https://github.com/RazrFalcon/libsvgparser/commit/4742f16e834445a682a0a4db62600d275a457390), [endless loop](https://github.com/RazrFalcon/libsvgparser/commit/c55d9a7d4d1e83f405be2e7bfddea89f579f6fc9)
