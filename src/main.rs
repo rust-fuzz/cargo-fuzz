@@ -128,14 +128,18 @@ impl FuzzProject {
     fn add_target<'a>(&self, args: &ArgMatches<'a>) -> Result<()> {
         let target: String = args.value_of_os("TARGET").expect("TARGET is required").to_os_string()
             .into_string().map_err(|_| "TARGET must be valid unicode")?;
+        // Create corpus and artifact directories for the newly added target
+        self.corpus_for(&target)?;
+        self.artifacts_for(&target)?;
         self.create_target_template(&target)
-            .chain_err(|| format!("could not create template file for target {:?}", target))
+            .chain_err(|| format!("could not add target {:?}", target))
     }
 
     /// Add a new fuzz target script with a given name
     fn create_target_template<'a>(&self, target: &str) -> Result<()> {
         let target_path = self.target_path(target);
-        let mut script = fs::OpenOptions::new().write(true).create_new(true).open(&target_path)?;
+        let mut script = fs::OpenOptions::new().write(true).create_new(true).open(&target_path)
+            .chain_err(|| format!("could not create target script file at {:?}", target_path))?;
         script.write_fmt(target_template!(self.root_project_name()?.replace("-", "_")))?;
 
         let mut cargo = fs::OpenOptions::new().append(true)
