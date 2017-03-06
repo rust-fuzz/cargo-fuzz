@@ -12,7 +12,7 @@ extern crate term;
 extern crate error_chain;
 
 use clap::{App, Arg, SubCommand, ArgMatches, AppSettings};
-use std::{env, fs, path, process};
+use std::{env, fs, path, ffi, process};
 use std::io::Write;
 use std::io::Read;
 
@@ -158,8 +158,8 @@ impl FuzzProject {
         flags.push_str("-Cpasses=sancov -Cllvm-args=-sanitizer-coverage-level=3 -Zsanitizer=address -Cpanic=abort");
         let mut cmd = process::Command::new("cargo");
 
-        fs::create_dir_all("corpus")?;
-        fs::create_dir_all("artifacts")?;
+        let mut artefact_arg = ffi::OsString::from("-artifact_prefix=");
+        artefact_arg.push(self.artifacts_for(&target)?);
 
         // Merge the asan options, so users can still provide their own options
         // to e.g. disable the leak sanitizer. Options are colon-separated.
@@ -180,21 +180,26 @@ impl FuzzProject {
            // won't pass rustflags to build scripts
            .arg(target_triple)
            .arg("--")
-           .arg("-artifact_prefix=artifacts/")
+           .arg(artefact_arg)
            .env("ASAN_OPTIONS", &asan_opts);
-        let exec_args = exec_args.as_ref().and_then(|args| args.split_last());
-        exec_args.map(|(last, rest)| {
+
+        // Corpus or artefact file must be last argument passed. Check if the last argument being
+        // passed through to libfuzzer looks anything like a not-argument (missing `-`). If so,
+        // do not append our pregenerated corpus directory.
+        if let Some((last, rest)) = exec_args.as_ref().and_then(|args| args.split_last()) {
             for arg in rest {
                 cmd.arg(arg);
             }
             if last.as_bytes().starts_with(b"-") {
                 cmd.arg(last);
-                cmd.arg("corpus"); // must be last arg
+                cmd.arg(self.corpus_for(&target)?);
             } else {
-                // Allow users to specify their own corpus directory or test case
                 cmd.arg(last);
             }
-        });
+        } else {
+            cmd.arg(self.corpus_for(&target)?);
+        }
+
         exec_cmd(&mut cmd).chain_err(|| format!("could not execute command: {:?}", cmd))?;
         Ok(())
     }
@@ -205,6 +210,25 @@ impl FuzzProject {
 
     fn manifest_path(&self) -> path::PathBuf {
         self.path().join("Cargo.toml")
+    }
+
+    fn corpus_for(&self, target: &str) -> Result<path::PathBuf> {
+        let mut p = self.path();
+        p.push("corpus");
+        p.push(target);
+        fs::create_dir_all(&p)
+            .chain_err(|| format!("could not make a corpus directory at {:?}", p))?;
+        Ok(p)
+    }
+
+    fn artifacts_for(&self, target: &str) -> Result<path::PathBuf> {
+        let mut p = self.path();
+        p.push("artifacts");
+        p.push(target);
+        p.push(""); // trailing slash, necessary for libfuzzer, because it does simple concat
+        fs::create_dir_all(&p)
+            .chain_err(|| format!("could not make a artifact directory at {:?}", p))?;
+        Ok(p)
     }
 
     fn target_path(&self, target: &str) -> path::PathBuf {
