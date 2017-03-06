@@ -45,7 +45,9 @@ fn main() {
                  .help("additional libFuzzer arguments passed to the binary"))
         )
         .subcommand(SubCommand::with_name("add").about("Add a new fuzz target")
-                    .arg(Arg::with_name("TARGET").required(true)))
+                    .arg(Arg::with_name("TARGET").required(true)
+                         .help("name of the fuzz target"))
+        )
         .subcommand(SubCommand::with_name("list").about("List all fuzz targets"));
     let args = app.get_matches();
 
