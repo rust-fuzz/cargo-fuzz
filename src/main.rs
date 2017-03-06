@@ -16,6 +16,8 @@ use std::{env, fs, path, process};
 use std::io::Write;
 use std::io::Read;
 
+use std::os::unix::ffi::OsStrExt;
+
 #[macro_use]
 mod templates;
 mod utils;
@@ -42,7 +44,8 @@ fn main() {
             .arg(Arg::with_name("TARGET").required(true)
                  .help("name of the fuzz target"))
             .arg(Arg::with_name("ARGS").multiple(true)
-                 .help("additional libFuzzer arguments passed to the binary"))
+                 .help("additional libFuzzer arguments passed to the binary \
+                       (including a path to corpus or artefact which must be last argument)"))
         )
         .subcommand(SubCommand::with_name("add").about("Add a new fuzz target")
                     .arg(Arg::with_name("TARGET").required(true)
@@ -144,10 +147,10 @@ impl FuzzProject {
     fn exec_target<'a>(&self, args: &ArgMatches<'a>) -> Result<()> {
         let target: String = args.value_of_os("TARGET").expect("TARGET is required").to_os_string()
             .into_string().map_err(|_| "TARGET must be valid unicode")?;
-        let exec_args = args.values_of_os("ARGS");
+        let exec_args = args.values_of_os("ARGS")
+                            .map(|v| v.collect::<Vec<_>>());
         let target_triple = "x86_64-unknown-linux-gnu";
 
-        env::set_current_dir(self.path())?;
         let mut flags = env::var("RUSTFLAGS").unwrap_or("".into());
         if !flags.is_empty() {
             flags.push(' ');
@@ -168,6 +171,8 @@ impl FuzzProject {
 
         cmd.env("RUSTFLAGS", flags)
            .arg("run")
+           .arg("--manifest-path")
+           .arg(self.manifest_path())
            .arg("--verbose")
            .arg("--bin")
            .arg(&target)
@@ -177,8 +182,19 @@ impl FuzzProject {
            .arg("--")
            .arg("-artifact_prefix=artifacts/")
            .env("ASAN_OPTIONS", &asan_opts);
-        exec_args.map(|args| for arg in args { cmd.arg(arg); });
-        cmd.arg("corpus"); // must be last arg
+        let exec_args = exec_args.as_ref().and_then(|args| args.split_last());
+        exec_args.map(|(last, rest)| {
+            for arg in rest {
+                cmd.arg(arg);
+            }
+            if last.as_bytes().starts_with(b"-") {
+                cmd.arg(last);
+                cmd.arg("corpus"); // must be last arg
+            } else {
+                // Allow users to specify their own corpus directory or test case
+                cmd.arg(last);
+            }
+        });
         exec_cmd(&mut cmd).chain_err(|| format!("could not execute command: {:?}", cmd))?;
         Ok(())
     }
