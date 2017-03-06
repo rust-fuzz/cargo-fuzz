@@ -1,0 +1,6 @@
+[package]
+name = "testcrate"
+version = "0.1.0"
+authors = ["The rust-fuzz Project Developers"]
+
+[dependencies]

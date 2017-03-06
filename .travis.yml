@@ -1,12 +1,21 @@
 language: rust
+
 rust:
   - stable
   - beta
   - nightly
+
 os:
   - linux
 
 matrix:
   fast_finish: true
+
 notifications:
   email: false
+
+deploy:
+  provider: script
+  script: scripts/deploy.sh
+  on:
+    branch: master
