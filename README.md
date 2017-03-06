@@ -40,8 +40,8 @@ $ cd /path/to/project
 $ cargo fuzz run fuzzer_script_1 # or whatever the target is named
 ```
 
-Then, wait till it finds something!
-
+Then, wait till it finds something! More complex invocations are available as well. Consider
+looking at `cargo fuzz --help`, `cargo fuzz run --help` and others.
 
 ## Trophy case
 
