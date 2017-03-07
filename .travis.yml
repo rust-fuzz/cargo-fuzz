@@ -14,8 +14,4 @@ matrix:
 notifications:
   email: false
 
-deploy:
-  provider: script
-  script: test/run.sh
-  on:
-    branch: master
+script: test/run.sh
