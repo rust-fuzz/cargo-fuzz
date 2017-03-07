@@ -1,4 +1,4 @@
-cd etc/testcrate/
+cd testcrate
 
 cargo-fuzz init
 
