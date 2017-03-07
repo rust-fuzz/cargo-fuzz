@@ -5,3 +5,6 @@ authors = ["The rust-fuzz Project Developers"]
 publish = false
 
 [dependencies]
+
+[workspace]
+members = ["."]
