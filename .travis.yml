@@ -16,6 +16,6 @@ notifications:
 
 deploy:
   provider: script
-  script: scripts/deploy.sh
+  script: test/run.sh
   on:
     branch: master
