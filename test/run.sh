@@ -1,4 +1,3 @@
-cd ..
 cargo install
 cd test/testcrate
 cargo build
