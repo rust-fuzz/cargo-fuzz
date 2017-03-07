@@ -1,4 +1,5 @@
 cargo install
+PATH=$PATH:/home/travis/.cargo/bin
 cd test/testcrate
 cargo build
 cargo-fuzz init
