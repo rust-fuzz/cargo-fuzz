@@ -16,8 +16,6 @@ use std::{env, fs, path, ffi, process};
 use std::io::Write;
 use std::io::Read;
 
-use std::os::unix::ffi::OsStrExt;
-
 #[macro_use]
 mod templates;
 mod utils;
@@ -40,12 +38,13 @@ fn main() {
         .arg(Arg::with_name("dummy").possible_value("fuzz").required(false).hidden(true))
         .subcommand(SubCommand::with_name("init").about("Initialize the fuzz folder"))
         .subcommand(SubCommand::with_name("run").about("Run the fuzz target in fuzz/fuzzers")
-            .setting(AppSettings::TrailingVarArg)
+            .arg(Arg::with_name("NO_CORPUS").short("n").long("no-corpus")
+                 .help("do not automatically pass a corpus directory \
+                       (allows for custom corpus or artefact files to be passed via <ARGS>)"))
             .arg(Arg::with_name("TARGET").required(true)
                  .help("name of the fuzz target"))
             .arg(Arg::with_name("ARGS").multiple(true)
-                 .help("additional libFuzzer arguments passed to the binary \
-                       (including a path to corpus or artefact which must be last argument)"))
+                 .help("additional libFuzzer arguments passed to the binary"))
         )
         .subcommand(SubCommand::with_name("add").about("Add a new fuzz target")
                     .arg(Arg::with_name("TARGET").required(true)
@@ -151,6 +150,7 @@ impl FuzzProject {
     fn exec_target<'a>(&self, args: &ArgMatches<'a>) -> Result<()> {
         let target: String = args.value_of_os("TARGET").expect("TARGET is required").to_os_string()
             .into_string().map_err(|_| "TARGET must be valid unicode")?;
+        let no_corpus = args.is_present("NO_CORPUS");
         let exec_args = args.values_of_os("ARGS")
                             .map(|v| v.collect::<Vec<_>>());
         let target_triple = "x86_64-unknown-linux-gnu";
@@ -187,20 +187,12 @@ impl FuzzProject {
            .arg(artefact_arg)
            .env("ASAN_OPTIONS", &asan_opts);
 
-        // Corpus or artefact file must be last argument passed. Check if the last argument being
-        // passed through to libfuzzer looks anything like a not-argument (missing `-`). If so,
-        // do not append our pregenerated corpus directory.
-        if let Some((last, rest)) = exec_args.as_ref().and_then(|args| args.split_last()) {
-            for arg in rest {
+        if let Some(args) = exec_args {
+            for arg in args {
                 cmd.arg(arg);
             }
-            if last.as_bytes().starts_with(b"-") {
-                cmd.arg(last);
-                cmd.arg(self.corpus_for(&target)?);
-            } else {
-                cmd.arg(last);
-            }
-        } else {
+        }
+        if !no_corpus {
             cmd.arg(self.corpus_for(&target)?);
         }
 
