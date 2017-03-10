@@ -14,4 +14,4 @@ matrix:
 notifications:
   email: false
 
-script: test/run.sh
+script: scripts/run.sh
