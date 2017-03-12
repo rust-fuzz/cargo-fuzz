@@ -8,6 +8,6 @@ repository = "https://github.com/rust-fuzz/cargo-fuzz/"
 
 [dependencies]
 toml            = "0.3"
-term            = "0.4.5"
-clap            = "2.20.5"
+term            = "0.4"
+clap            = { git = "https://github.com/kbknapp/clap-rs.git" } # "2.21"
 error-chain     = "0.10"

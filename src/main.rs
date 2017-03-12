@@ -38,12 +38,11 @@ fn main() {
         .arg(Arg::with_name("dummy").possible_value("fuzz").required(false).hidden(true))
         .subcommand(SubCommand::with_name("init").about("Initialize the fuzz folder"))
         .subcommand(SubCommand::with_name("run").about("Run the fuzz target in fuzz/fuzzers")
-            .arg(Arg::with_name("NO_CORPUS").short("n").long("no-corpus")
-                 .help("do not automatically pass a corpus directory \
-                       (allows for custom corpus or artefact files to be passed via <ARGS>)"))
             .arg(Arg::with_name("TARGET").required(true)
                  .help("name of the fuzz target"))
-            .arg(Arg::with_name("ARGS").multiple(true)
+            .arg(Arg::with_name("CORPUS")
+                 .help("pass custom corpus directory or artefact files"))
+            .arg(Arg::with_name("ARGS").multiple(true).last(true)
                  .help("additional libFuzzer arguments passed to the binary"))
         )
         .subcommand(SubCommand::with_name("add").about("Add a new fuzz target")
@@ -150,7 +149,7 @@ impl FuzzProject {
     fn exec_target<'a>(&self, args: &ArgMatches<'a>) -> Result<()> {
         let target: String = args.value_of_os("TARGET").expect("TARGET is required").to_os_string()
             .into_string().map_err(|_| "TARGET must be valid unicode")?;
-        let no_corpus = args.is_present("NO_CORPUS");
+        let corpus = args.values_of_os("CORPUS");
         let exec_args = args.values_of_os("ARGS")
                             .map(|v| v.collect::<Vec<_>>());
         let target_triple = "x86_64-unknown-linux-gnu";
@@ -192,7 +191,11 @@ impl FuzzProject {
                 cmd.arg(arg);
             }
         }
-        if !no_corpus {
+        if let Some(corpus) = corpus {
+            for arg in corpus {
+                cmd.arg(arg);
+            }
+        } else {
             cmd.arg(self.corpus_for(&target)?);
         }
 
