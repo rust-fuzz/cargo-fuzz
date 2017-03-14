@@ -158,6 +158,14 @@ impl FuzzProject {
         fs::create_dir_all("corpus")?;
         fs::create_dir_all("artifacts")?;
 
+        // Merge the asan options, so users can still provide their own options
+        // to e.g. disable the leak sanitizer. Options are colon-separated.
+        let mut asan_opts = env::var("ASAN_OPTIONS").unwrap_or("".into());
+        if !asan_opts.is_empty() {
+            asan_opts.push(':');
+        }
+        asan_opts.push_str("detect_odr_violation=0");
+
         cmd.env("RUSTFLAGS", flags)
            .arg("run")
            .arg("--verbose")
@@ -168,7 +176,7 @@ impl FuzzProject {
            .arg(target_triple)
            .arg("--")
            .arg("-artifact_prefix=artifacts/")
-           .env("ASAN_OPTIONS", "detect_odr_violation=0");
+           .env("ASAN_OPTIONS", &asan_opts);
         exec_args.map(|args| for arg in args { cmd.arg(arg); });
         cmd.arg("corpus"); // must be last arg
         exec_cmd(&mut cmd).chain_err(|| format!("could not execute command: {:?}", cmd))?;
