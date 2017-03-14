@@ -8,6 +8,6 @@ repository = "https://github.com/rust-fuzz/cargo-fuzz/"
 
 [dependencies]
 toml            = "0.3"
-term            = "0.4.5"
-clap            = "2.20.5"
+term            = "0.4"
+clap            = "2.21.1"
 error-chain     = "0.10"
