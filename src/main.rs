@@ -38,6 +38,10 @@ fn main() {
         .arg(Arg::with_name("dummy").possible_value("fuzz").required(false).hidden(true))
         .subcommand(SubCommand::with_name("init").about("Initialize the fuzz folder"))
         .subcommand(SubCommand::with_name("run").about("Run the fuzz target in fuzz/fuzzers")
+            .arg(Arg::with_name("release").long("release").short("O")
+                 .help("Build artifacts in release mode, with optimizations"))
+            .arg(Arg::with_name("debug_assertions").long("debug-assertions").short("a")
+                 .help("Build artifacts with debug assertions enabled (default if not -O)"))
             .arg(Arg::with_name("TARGET").required(true)
                  .help("name of the fuzz target"))
             .arg(Arg::with_name("CORPUS").multiple(true)
@@ -149,16 +153,26 @@ impl FuzzProject {
     fn exec_target<'a>(&self, args: &ArgMatches<'a>) -> Result<()> {
         let target: String = args.value_of_os("TARGET").expect("TARGET is required").to_os_string()
             .into_string().map_err(|_| "TARGET must be valid unicode")?;
+        let release: bool = args.is_present("release");
+        let assertions: bool = args.is_present("debug_assertions");
         let corpus = args.values_of_os("CORPUS");
         let exec_args = args.values_of_os("ARGS")
                             .map(|v| v.collect::<Vec<_>>());
         let target_triple = "x86_64-unknown-linux-gnu";
 
-        let mut flags = env::var("RUSTFLAGS").unwrap_or("".into());
-        if !flags.is_empty() {
-            flags.push(' ');
+        let other_flags = env::var("RUSTFLAGS").unwrap_or("".into());
+        let mut flags: Vec<&str> = vec![
+            "-Cpasses=sancov",
+            "-Cllvm-args=-sanitizer-coverage-level=3",
+            "-Zsanitizer=address",
+            "-Cpanic=abort",
+        ];
+        if assertions {
+            flags.push("-Cdebug-assertions");
         }
-        flags.push_str("-Cpasses=sancov -Cllvm-args=-sanitizer-coverage-level=3 -Zsanitizer=address -Cpanic=abort");
+        flags.extend(other_flags.split(" "));
+        let rustflags = flags.join(" ");
+
         let mut cmd = process::Command::new("cargo");
 
         let mut artefact_arg = ffi::OsString::from("-artifact_prefix=");
@@ -172,19 +186,23 @@ impl FuzzProject {
         }
         asan_opts.push_str("detect_odr_violation=0");
 
-        cmd.env("RUSTFLAGS", flags)
+        cmd.env("RUSTFLAGS", rustflags)
+           .env("ASAN_OPTIONS", &asan_opts)
            .arg("run")
            .arg("--manifest-path")
-           .arg(self.manifest_path())
-           .arg("--verbose")
+           .arg(self.manifest_path());
+        cmd.arg("run");
+        if release {
+            cmd.arg("--release");
+        }
+        cmd.arg("--verbose")
            .arg("--bin")
            .arg(&target)
            .arg("--target")
            // won't pass rustflags to build scripts
            .arg(target_triple)
            .arg("--")
-           .arg(artefact_arg)
-           .env("ASAN_OPTIONS", &asan_opts);
+           .arg(artefact_arg);
 
         if let Some(args) = exec_args {
             for arg in args {
