@@ -62,3 +62,6 @@ looking at `cargo fuzz --help`, `cargo fuzz run --help` and others.
  - uuid: [index out of bounds](https://github.com/rust-lang-nursery/uuid/pull/81)
  - flac: [index out of bounds](https://github.com/sourrust/flac/issues/11)
  - ntp: [panic caused by unwrap on invalid input](https://github.com/JeffBelgum/ntp/commit/f23ded23c26a5326dae249905d298e8c5f51d371)
+ - pulldown-cmark: [Overflow ParseIntError](https://github.com/google/pulldown-cmark/issues/49)
+ - bson: [multiple bugs, inclung arithmetic overflow](https://github.com/zonyitoo/bson-rs/issues/64)
+ - jpeg-decoder: [arithmetic overflow](https://github.com/kaksmet/jpeg-decoder/issues/69)
