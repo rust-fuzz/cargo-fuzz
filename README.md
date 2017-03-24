@@ -65,3 +65,4 @@ looking at `cargo fuzz --help`, `cargo fuzz run --help` and others.
  - pulldown-cmark: [Overflow ParseIntError](https://github.com/google/pulldown-cmark/issues/49)
  - bson: [multiple bugs, inclung arithmetic overflow](https://github.com/zonyitoo/bson-rs/issues/64)
  - jpeg-decoder: [arithmetic overflow](https://github.com/kaksmet/jpeg-decoder/issues/69)
+ - npy-rs: [arithmetic overflow](https://github.com/potocpav/npy-rs/pull/2)
