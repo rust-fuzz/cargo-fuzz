@@ -61,4 +61,8 @@ looking at `cargo fuzz --help`, `cargo fuzz run --help` and others.
  - vobsub: [invalid slice 1](https://github.com/emk/subtitles-rs/commit/20e430105b1fc02aa135788ba150a0dd49a7d1ef), [2](https://github.com/emk/subtitles-rs/commit/46df766dd22cb6a04a534611f08c23903e58746c), [3](https://github.com/emk/subtitles-rs/commit/f2f5309aa8173dfec4bb5816950d718a1ac669c2), [shift overflow](https://github.com/emk/subtitles-rs/commit/5d3364b96389d90deac0f024a57660951b7e1dd6), [arithmetic overflow](https://github.com/emk/subtitles-rs/commit/3afdb7e1c5e786e88653253243648dd9d49983f2)
  - uuid: [index out of bounds](https://github.com/rust-lang-nursery/uuid/pull/81)
  - flac: [index out of bounds](https://github.com/sourrust/flac/issues/11)
+ - ntp: [panic caused by unwrap on invalid input](https://github.com/JeffBelgum/ntp/commit/f23ded23c26a5326dae249905d298e8c5f51d371)
+ - pulldown-cmark: [Overflow ParseIntError](https://github.com/google/pulldown-cmark/issues/49)
+ - bson: [multiple bugs, inclung arithmetic overflow](https://github.com/zonyitoo/bson-rs/issues/64)
+ - jpeg-decoder: [arithmetic overflow](https://github.com/kaksmet/jpeg-decoder/issues/69)
  - npy-rs: [arithmetic overflow](https://github.com/potocpav/npy-rs/pull/2)

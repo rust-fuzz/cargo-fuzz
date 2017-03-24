@@ -12,7 +12,7 @@ extern crate term;
 extern crate error_chain;
 
 use clap::{App, Arg, SubCommand, ArgMatches, AppSettings};
-use std::{env, fs, path, process};
+use std::{env, fs, path, ffi, process};
 use std::io::Write;
 use std::io::Read;
 
@@ -38,10 +38,15 @@ fn main() {
         .arg(Arg::with_name("dummy").possible_value("fuzz").required(false).hidden(true))
         .subcommand(SubCommand::with_name("init").about("Initialize the fuzz folder"))
         .subcommand(SubCommand::with_name("run").about("Run the fuzz target in fuzz/fuzzers")
-            .setting(AppSettings::TrailingVarArg)
+            .arg(Arg::with_name("release").long("release").short("O")
+                 .help("Build artifacts in release mode, with optimizations"))
+            .arg(Arg::with_name("debug_assertions").long("debug-assertions").short("a")
+                 .help("Build artifacts with debug assertions enabled (default if not -O)"))
             .arg(Arg::with_name("TARGET").required(true)
                  .help("name of the fuzz target"))
-            .arg(Arg::with_name("ARGS").multiple(true)
+            .arg(Arg::with_name("CORPUS").multiple(true)
+                 .help("custom corpus directory or artefact files"))
+            .arg(Arg::with_name("ARGS").multiple(true).last(true)
                  .help("additional libFuzzer arguments passed to the binary"))
         )
         .subcommand(SubCommand::with_name("add").about("Add a new fuzz target")
@@ -125,14 +130,18 @@ impl FuzzProject {
     fn add_target<'a>(&self, args: &ArgMatches<'a>) -> Result<()> {
         let target: String = args.value_of_os("TARGET").expect("TARGET is required").to_os_string()
             .into_string().map_err(|_| "TARGET must be valid unicode")?;
+        // Create corpus and artifact directories for the newly added target
+        self.corpus_for(&target)?;
+        self.artifacts_for(&target)?;
         self.create_target_template(&target)
-            .chain_err(|| format!("could not create template file for target {:?}", target))
+            .chain_err(|| format!("could not add target {:?}", target))
     }
 
     /// Add a new fuzz target script with a given name
     fn create_target_template<'a>(&self, target: &str) -> Result<()> {
         let target_path = self.target_path(target);
-        let mut script = fs::OpenOptions::new().write(true).create_new(true).open(&target_path)?;
+        let mut script = fs::OpenOptions::new().write(true).create_new(true).open(&target_path)
+            .chain_err(|| format!("could not create target script file at {:?}", target_path))?;
         script.write_fmt(target_template!(self.root_project_name()?.replace("-", "_")))?;
 
         let mut cargo = fs::OpenOptions::new().append(true)
@@ -144,19 +153,30 @@ impl FuzzProject {
     fn exec_target<'a>(&self, args: &ArgMatches<'a>) -> Result<()> {
         let target: String = args.value_of_os("TARGET").expect("TARGET is required").to_os_string()
             .into_string().map_err(|_| "TARGET must be valid unicode")?;
-        let exec_args = args.values_of_os("ARGS");
+        let release: bool = args.is_present("release");
+        let assertions: bool = args.is_present("debug_assertions");
+        let corpus = args.values_of_os("CORPUS");
+        let exec_args = args.values_of_os("ARGS")
+                            .map(|v| v.collect::<Vec<_>>());
         let target_triple = "x86_64-unknown-linux-gnu";
 
-        env::set_current_dir(self.path())?;
-        let mut flags = env::var("RUSTFLAGS").unwrap_or("".into());
-        if !flags.is_empty() {
-            flags.push(' ');
+        let other_flags = env::var("RUSTFLAGS").unwrap_or("".into());
+        let mut flags: Vec<&str> = vec![
+            "-Cpasses=sancov",
+            "-Cllvm-args=-sanitizer-coverage-level=3",
+            "-Zsanitizer=address",
+            "-Cpanic=abort",
+        ];
+        if assertions {
+            flags.push("-Cdebug-assertions");
         }
-        flags.push_str("-Cpasses=sancov -Cllvm-args=-sanitizer-coverage-level=3 -Zsanitizer=address -Cpanic=abort");
+        flags.extend(other_flags.split(" "));
+        let rustflags = flags.join(" ");
+
         let mut cmd = process::Command::new("cargo");
 
-        fs::create_dir_all("corpus")?;
-        fs::create_dir_all("artifacts")?;
+        let mut artefact_arg = ffi::OsString::from("-artifact_prefix=");
+        artefact_arg.push(self.artifacts_for(&target)?);
 
         // Merge the asan options, so users can still provide their own options
         // to e.g. disable the leak sanitizer. Options are colon-separated.
@@ -166,19 +186,37 @@ impl FuzzProject {
         }
         asan_opts.push_str("detect_odr_violation=0");
 
-        cmd.env("RUSTFLAGS", flags)
+        cmd.env("RUSTFLAGS", rustflags)
+           .env("ASAN_OPTIONS", &asan_opts)
            .arg("run")
-           .arg("--verbose")
+           .arg("--manifest-path")
+           .arg(self.manifest_path());
+        cmd.arg("run");
+        if release {
+            cmd.arg("--release");
+        }
+        cmd.arg("--verbose")
            .arg("--bin")
            .arg(&target)
            .arg("--target")
            // won't pass rustflags to build scripts
            .arg(target_triple)
            .arg("--")
-           .arg("-artifact_prefix=artifacts/")
-           .env("ASAN_OPTIONS", &asan_opts);
-        exec_args.map(|args| for arg in args { cmd.arg(arg); });
-        cmd.arg("corpus"); // must be last arg
+           .arg(artefact_arg);
+
+        if let Some(args) = exec_args {
+            for arg in args {
+                cmd.arg(arg);
+            }
+        }
+        if let Some(corpus) = corpus {
+            for arg in corpus {
+                cmd.arg(arg);
+            }
+        } else {
+            cmd.arg(self.corpus_for(&target)?);
+        }
+
         exec_cmd(&mut cmd).chain_err(|| format!("could not execute command: {:?}", cmd))?;
         Ok(())
     }
@@ -189,6 +227,25 @@ impl FuzzProject {
 
     fn manifest_path(&self) -> path::PathBuf {
         self.path().join("Cargo.toml")
+    }
+
+    fn corpus_for(&self, target: &str) -> Result<path::PathBuf> {
+        let mut p = self.path();
+        p.push("corpus");
+        p.push(target);
+        fs::create_dir_all(&p)
+            .chain_err(|| format!("could not make a corpus directory at {:?}", p))?;
+        Ok(p)
+    }
+
+    fn artifacts_for(&self, target: &str) -> Result<path::PathBuf> {
+        let mut p = self.path();
+        p.push("artifacts");
+        p.push(target);
+        p.push(""); // trailing slash, necessary for libfuzzer, because it does simple concat
+        fs::create_dir_all(&p)
+            .chain_err(|| format!("could not make a artifact directory at {:?}", p))?;
+        Ok(p)
     }
 
     fn target_path(&self, target: &str) -> path::PathBuf {
