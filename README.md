@@ -68,3 +68,4 @@ looking at `cargo fuzz --help`, `cargo fuzz run --help` and others.
  - npy-rs: [arithmetic overflow](https://github.com/potocpav/npy-rs/pull/2)
  - snmp-parser: [panic on unwrapping](https://github.com/rusticata/snmp-parser/issues/2)
  - der-parser: [arithmetic overflow](https://github.com/rusticata/der-parser/issues/2)
+ - ssh-keys: [panic on slice indexing](https://github.com/tailhook/ssh-keys/issues/1)
