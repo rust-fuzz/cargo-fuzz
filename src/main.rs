@@ -127,7 +127,7 @@ impl FuzzProject {
         Ok(())
     }
 
-    fn add_target<'a>(&self, args: &ArgMatches<'a>) -> Result<()> {
+    fn add_target(&self, args: &ArgMatches) -> Result<()> {
         let target: String = args.value_of_os("TARGET").expect("TARGET is required").to_os_string()
             .into_string().map_err(|_| "TARGET must be valid unicode")?;
         // Create corpus and artifact directories for the newly added target
@@ -138,7 +138,7 @@ impl FuzzProject {
     }
 
     /// Add a new fuzz target script with a given name
-    fn create_target_template<'a>(&self, target: &str) -> Result<()> {
+    fn create_target_template(&self, target: &str) -> Result<()> {
         let target_path = self.target_path(target);
         let mut script = fs::OpenOptions::new().write(true).create_new(true).open(&target_path)
             .chain_err(|| format!("could not create target script file at {:?}", target_path))?;
