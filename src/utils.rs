@@ -25,7 +25,7 @@ fn red(s: &str) {
 }
 
 
-pub fn report_error(e: super::Error) {
+pub fn report_error(e: &super::Error) {
     red("error:");
     let _ = writeln!(::std::io::stderr(), " {}", e);
     for e in e.iter().skip(1) {

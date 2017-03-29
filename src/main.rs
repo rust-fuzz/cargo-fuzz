@@ -65,7 +65,7 @@ fn main() {
             FuzzProject::new().and_then(|p| p.exec_target(matches.expect("arguments present"))),
         (s, _) => panic!("unimplemented subcommand {}!", s),
     }.map(|_| 0).unwrap_or_else(|err| {
-        utils::report_error(err);
+        utils::report_error(&err);
         1
     }));
 }
