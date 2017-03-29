@@ -36,7 +36,6 @@ macro_rules! gitignore_template {
     () => {
 format_args!(r##"
 target
-libfuzzer
 corpus
 artifacts
 "##)
