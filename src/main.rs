@@ -170,7 +170,7 @@ impl FuzzProject {
         if assertions {
             flags.push("-Cdebug-assertions");
         }
-        flags.extend(other_flags.split(" "));
+        flags.extend(other_flags.split(' '));
         let rustflags = flags.join(" ");
 
         let mut cmd = process::Command::new("cargo");
