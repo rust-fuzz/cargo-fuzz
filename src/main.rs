@@ -65,7 +65,7 @@ fn main() {
             FuzzProject::new().and_then(|p| p.exec_target(matches.expect("arguments present"))),
         (s, _) => panic!("unimplemented subcommand {}!", s),
     }.map(|_| 0).unwrap_or_else(|err| {
-        utils::report_error(err);
+        utils::report_error(&err);
         1
     }));
 }
@@ -127,7 +127,7 @@ impl FuzzProject {
         Ok(())
     }
 
-    fn add_target<'a>(&self, args: &ArgMatches<'a>) -> Result<()> {
+    fn add_target(&self, args: &ArgMatches) -> Result<()> {
         let target: String = args.value_of_os("TARGET").expect("TARGET is required").to_os_string()
             .into_string().map_err(|_| "TARGET must be valid unicode")?;
         // Create corpus and artifact directories for the newly added target
@@ -138,7 +138,7 @@ impl FuzzProject {
     }
 
     /// Add a new fuzz target script with a given name
-    fn create_target_template<'a>(&self, target: &str) -> Result<()> {
+    fn create_target_template(&self, target: &str) -> Result<()> {
         let target_path = self.target_path(target);
         let mut script = fs::OpenOptions::new().write(true).create_new(true).open(&target_path)
             .chain_err(|| format!("could not create target script file at {:?}", target_path))?;
@@ -160,7 +160,7 @@ impl FuzzProject {
                             .map(|v| v.collect::<Vec<_>>());
         let target_triple = "x86_64-unknown-linux-gnu";
 
-        let other_flags = env::var("RUSTFLAGS").unwrap_or("".into());
+        let other_flags = env::var("RUSTFLAGS").unwrap_or_default();
         let mut flags: Vec<&str> = vec![
             "-Cpasses=sancov",
             "-Cllvm-args=-sanitizer-coverage-level=3",
@@ -170,7 +170,7 @@ impl FuzzProject {
         if assertions {
             flags.push("-Cdebug-assertions");
         }
-        flags.extend(other_flags.split(" "));
+        flags.extend(other_flags.split(' '));
         let rustflags = flags.join(" ");
 
         let mut cmd = process::Command::new("cargo");
@@ -180,7 +180,7 @@ impl FuzzProject {
 
         // Merge the asan options, so users can still provide their own options
         // to e.g. disable the leak sanitizer. Options are colon-separated.
-        let mut asan_opts = env::var("ASAN_OPTIONS").unwrap_or("".into());
+        let mut asan_opts = env::var("ASAN_OPTIONS").unwrap_or_default();
         if !asan_opts.is_empty() {
             asan_opts.push(':');
         }
@@ -191,7 +191,6 @@ impl FuzzProject {
            .arg("run")
            .arg("--manifest-path")
            .arg(self.manifest_path());
-        cmd.arg("run");
         if release {
             cmd.arg("--release");
         }
@@ -292,7 +291,7 @@ fn collect_targets(value: &toml::Value) -> Vec<String> {
     if let Some(bins) = bins {
         bins.iter().map(|bin|
             bin.as_table().and_then(|v| v.get("name")).and_then(toml::Value::as_str)
-        ).filter_map(|name| name.map(|v| String::from(v))).collect()
+        ).filter_map(|name| name.map(String::from)).collect()
     } else {
         Vec::new()
     }
