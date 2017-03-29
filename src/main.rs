@@ -292,7 +292,7 @@ fn collect_targets(value: &toml::Value) -> Vec<String> {
     if let Some(bins) = bins {
         bins.iter().map(|bin|
             bin.as_table().and_then(|v| v.get("name")).and_then(toml::Value::as_str)
-        ).filter_map(|name| name.map(|v| String::from(v))).collect()
+        ).filter_map(|name| name.map(String::from)).collect()
     } else {
         Vec::new()
     }
