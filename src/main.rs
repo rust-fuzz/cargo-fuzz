@@ -191,7 +191,6 @@ impl FuzzProject {
            .arg("run")
            .arg("--manifest-path")
            .arg(self.manifest_path());
-        cmd.arg("run");
         if release {
             cmd.arg("--release");
         }
