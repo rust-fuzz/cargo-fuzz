@@ -160,7 +160,7 @@ impl FuzzProject {
                             .map(|v| v.collect::<Vec<_>>());
         let target_triple = "x86_64-unknown-linux-gnu";
 
-        let other_flags = env::var("RUSTFLAGS").unwrap_or("".into());
+        let other_flags = env::var("RUSTFLAGS").unwrap_or_default();
         let mut flags: Vec<&str> = vec![
             "-Cpasses=sancov",
             "-Cllvm-args=-sanitizer-coverage-level=3",
@@ -180,7 +180,7 @@ impl FuzzProject {
 
         // Merge the asan options, so users can still provide their own options
         // to e.g. disable the leak sanitizer. Options are colon-separated.
-        let mut asan_opts = env::var("ASAN_OPTIONS").unwrap_or("".into());
+        let mut asan_opts = env::var("ASAN_OPTIONS").unwrap_or_default();
         if !asan_opts.is_empty() {
             asan_opts.push(':');
         }
