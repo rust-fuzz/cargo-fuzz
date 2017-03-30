@@ -1,4 +1,4 @@
-cargo install
+cargo install --force
 PATH=$PATH:/home/travis/.cargo/bin
 cd testcrate
 cargo build
