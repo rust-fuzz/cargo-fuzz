@@ -104,12 +104,14 @@ impl FuzzProject {
             targets: Vec::new(),
         };
         let fuzz_project = project.path();
+        let root_project_name = try!(project.root_project_name());
+
         // TODO: check if the project is already initialized
         fs::create_dir(&fuzz_project)?;
         fs::create_dir(fuzz_project.join("fuzzers"))?;
 
         let mut cargo = fs::File::create(fuzz_project.join("Cargo.toml"))?;
-        cargo.write_fmt(toml_template!(project.root_project_name()?))?;
+        cargo.write_fmt(toml_template!(root_project_name))?;
 
         let mut ignore = fs::File::create(fuzz_project.join(".gitignore"))?;
         ignore.write_fmt(gitignore_template!())?;
