@@ -44,6 +44,7 @@ looking at `cargo fuzz --help`, `cargo fuzz run --help` and others.
 ## Trophy case
 
  - [toml-rs panic](https://github.com/alexcrichton/toml-rs/issues/152)
+ - [regex parsing panics](https://github.com/rust-lang/regex/pull/349), with [blog post](https://www.nibor.org/blog/fuzzing-is-magic---or-how-i-found-a-panic-in-rusts-regex-library/)
  - unicode-segmentation: [grapheme boundary correctness](https://github.com/unicode-rs/unicode-segmentation/issues/19), [word boundary correctness](https://github.com/unicode-rs/unicode-segmentation/issues/20)
  - image: [1](https://github.com/PistonDevelopers/image/issues/622), [2](https://github.com/PistonDevelopers/image/issues/623), [3](https://github.com/PistonDevelopers/image/issues/624), [4](https://github.com/PistonDevelopers/image/issues/625)
  - inflate: [arithmetic overflow](https://github.com/PistonDevelopers/inflate/issues/14)
