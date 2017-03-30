@@ -41,6 +41,12 @@ $ cargo fuzz run fuzzer_script_1 # or whatever the target is named
 Then, wait till it finds something! More complex invocations are available as well. Consider
 looking at `cargo fuzz --help`, `cargo fuzz run --help` and others.
 
+Once you have found something and believe you have fixed it, re-run the fuzzer with the input:
+
+```sh
+$ cargo fuzz run fuzzer_script_1 fuzz/artifacts/fuzzer_script_1/<file mentioned in crash output>
+```
+
 ## Trophy case
 
  - [toml-rs panic](https://github.com/alexcrichton/toml-rs/issues/152)
