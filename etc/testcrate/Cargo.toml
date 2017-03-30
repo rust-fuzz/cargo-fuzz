@@ -1,0 +1,6 @@
+[package]
+name = "testcrate"
+version = "0.1.0"
+authors = ["ner0x652 <cornel.punga@gmail.com>"]
+
+[dependencies]
