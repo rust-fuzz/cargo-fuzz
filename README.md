@@ -51,7 +51,7 @@ looking at `cargo fuzz --help`, `cargo fuzz run --help` and others.
  - capnproto-rust: [Multiple bugs, including a memory safety bug](https://dwrensha.github.io/capnproto-rust/2017/02/27/cargo-fuzz.html)
  - hyper: [arithmetic overflow](https://github.com/hyperium/hyper/pull/1076)
  - libpnet: [arithmetic overflow](https://github.com/libpnet/libpnet/pull/250)
- - quick-xml: [arithmetic overflow](https://github.com/tafia/quick-xml/issues/53)
+ - quick-xml: [arithmetic overflow](https://github.com/tafia/quick-xml/issues/53), [arithmetic overflow](https://github.com/tafia/quick-xml/pull/55/commits/53a5c099df585dd65382ffd7f2912728eaa764d5)
  - svgparser: [arithmetic overflow, bound checking panic, incorrect result](https://github.com/RazrFalcon/libsvgparser/commit/4742f16e834445a682a0a4db62600d275a457390), [endless loop](https://github.com/RazrFalcon/libsvgparser/commit/c55d9a7d4d1e83f405be2e7bfddea89f579f6fc9)
  - num: [panic on `BigInt` parsing](https://github.com/rust-num/num/issues/268)
  - [httpdate panics](https://pyfisch.org/blog/fuzzing-all-crates/): "no character boundary" and arithmetic overflow
