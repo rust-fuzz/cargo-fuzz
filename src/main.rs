@@ -42,6 +42,11 @@ fn main() {
                  .help("Build artifacts in release mode, with optimizations"))
             .arg(Arg::with_name("debug_assertions").long("debug-assertions").short("a")
                  .help("Build artifacts with debug assertions enabled (default if not -O)"))
+            .arg(Arg::with_name("sanitizer").long("sanitizer").short("s")
+                 .takes_value(true)
+                 .possible_values(&["address", "leak", "memory", "thread"])
+                 .default_value("address")
+                 .help("Use different sanitizer"))
             .arg(Arg::with_name("TARGET").required(true)
                  .help("name of the fuzz target"))
             .arg(Arg::with_name("CORPUS").multiple(true)
@@ -157,39 +162,59 @@ impl FuzzProject {
             .into_string().map_err(|_| "TARGET must be valid unicode")?;
         let release: bool = args.is_present("release");
         let assertions: bool = args.is_present("debug_assertions");
+        let sanitizer: &str = args.value_of("sanitizer").expect("no sanitizer");
         let corpus = args.values_of_os("CORPUS");
         let exec_args = args.values_of_os("ARGS")
                             .map(|v| v.collect::<Vec<_>>());
         let target_triple = "x86_64-unknown-linux-gnu";
 
         let other_flags = env::var("RUSTFLAGS").unwrap_or_default();
-        let mut flags: Vec<&str> = vec![
-            "-Cpasses=sancov",
-            "-Cllvm-args=-sanitizer-coverage-level=3",
-            "-Zsanitizer=address",
-            "-Cpanic=abort",
-        ];
+        let mut rustflags: String = format!(
+            "-Cpasses=sancov \
+             -Cllvm-args=-sanitizer-coverage-level=3 \
+             -Zsanitizer={sanitizer} \
+             -Cpanic=abort",
+            sanitizer = sanitizer,
+        );
         if assertions {
-            flags.push("-Cdebug-assertions");
+            rustflags.push_str(" -Cdebug-assertions");
         }
-        flags.extend(other_flags.split(' '));
-        let rustflags = flags.join(" ");
+        if !other_flags.is_empty() {
+            rustflags.push_str(" ");
+            rustflags.push_str(&other_flags);
+        }
 
         let mut cmd = process::Command::new("cargo");
 
         let mut artefact_arg = ffi::OsString::from("-artifact_prefix=");
         artefact_arg.push(self.artifacts_for(&target)?);
 
-        // Merge the asan options, so users can still provide their own options
-        // to e.g. disable the leak sanitizer. Options are colon-separated.
-        let mut asan_opts = env::var("ASAN_OPTIONS").unwrap_or_default();
-        if !asan_opts.is_empty() {
-            asan_opts.push(':');
+        // For asan and tsan we have default options. Merge them to the given options,
+        // so users can still provide their own options to e.g. disable the leak sanitizer.
+        // Options are colon-separated.
+        match sanitizer {
+            "address" => {
+                let mut asan_opts = env::var("ASAN_OPTIONS").unwrap_or_default();
+                if !asan_opts.is_empty() {
+                    asan_opts.push(':');
+                }
+                asan_opts.push_str("detect_odr_violation=0");
+                cmd.env("ASAN_OPTIONS", &asan_opts);
+            }
+
+            "thread" => {
+                let mut tsan_opts = env::var("TSAN_OPTIONS").unwrap_or_default();
+                if !tsan_opts.is_empty() {
+                    tsan_opts.push(':');
+                }
+                tsan_opts.push_str("report_signal_unsafe=0");
+                cmd.env("TSAN_OPTIONS", &tsan_opts);
+            }
+
+            _ => {}
         }
-        asan_opts.push_str("detect_odr_violation=0");
 
         cmd.env("RUSTFLAGS", rustflags)
-           .env("ASAN_OPTIONS", &asan_opts)
            .arg("run")
            .arg("--manifest-path")
            .arg(self.manifest_path());
