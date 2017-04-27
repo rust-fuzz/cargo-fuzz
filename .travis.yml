@@ -10,13 +10,18 @@ addons:
     - gcc-5
     - g++-5
 
-rust: nightly
-
-os:
-  - linux
+osx_image: xcode8.3
 
 matrix:
   fast_finish: true
+  include:
+    - os: linux
+      rust: nightly
+      env: CC=gcc-5 CXX=g++-5
+    - os: osx
+      rust: nightly
+      env: CC=gcc CXX=g++
+      # ^ setting them to `clang/clang++` causes a mysterious "<cstdint> not found" error.
 
 notifications:
   email: false
