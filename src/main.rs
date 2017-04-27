@@ -53,6 +53,8 @@ fn main() {
                  .help("custom corpus directory or artefact files"))
             .arg(Arg::with_name("ARGS").multiple(true).last(true)
                  .help("additional libFuzzer arguments passed to the binary"))
+            .arg(Arg::with_name("TRIPLE").long("target")
+                 .help("target triple of the fuzz target"))
         )
         .subcommand(SubCommand::with_name("add").about("Add a new fuzz target")
                     .arg(Arg::with_name("TARGET").required(true)
@@ -166,7 +168,7 @@ impl FuzzProject {
         let corpus = args.values_of_os("CORPUS");
         let exec_args = args.values_of_os("ARGS")
                             .map(|v| v.collect::<Vec<_>>());
-        let target_triple = "x86_64-unknown-linux-gnu";
+        let target_triple = args.value_of_os("TRIPLE").unwrap_or_else(utils::default_target);
 
         let other_flags = env::var("RUSTFLAGS").unwrap_or_default();
         let mut rustflags: String = format!(
