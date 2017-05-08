@@ -8,13 +8,22 @@
 extern crate toml;
 extern crate clap;
 extern crate term;
+extern crate tokio_core;
+extern crate tokio_process;
+extern crate tokio_io;
+extern crate futures;
 #[macro_use]
 extern crate error_chain;
 
 use clap::{App, Arg, SubCommand, ArgMatches, AppSettings};
-use std::{env, fs, path, ffi, process};
+use std::{env, fs, path, ffi, process, io};
 use std::io::Write;
 use std::io::Read;
+use std::ffi::OsStr;
+
+use futures::{Future, Stream};
+use tokio_core::reactor::Core;
+use tokio_process::CommandExt;
 
 #[macro_use]
 mod templates;
@@ -51,10 +60,20 @@ fn main() {
                  .help("name of the fuzz target"))
             .arg(Arg::with_name("CORPUS").multiple(true)
                  .help("custom corpus directory or artefact files"))
+            .arg(Arg::with_name("TRIPLE").long("target")
+                 .default_value(utils::default_target())
+                 .help("target triple of the fuzz target"))
+            .arg(Arg::with_name("JOBS").long("jobs").short("j")
+                 .takes_value(true)
+                 .default_value("1")
+                 .help("number of concurrent jobs to run")
+                 .validator(|v| Err(From::from(match v.parse::<u16>() {
+                     Ok(0) => "0 jobs?",
+                     Err(_) => "must be a valid integer representing a sane number of jobs",
+                     _ => return Ok(()),
+                 }))))
             .arg(Arg::with_name("ARGS").multiple(true).last(true)
                  .help("additional libFuzzer arguments passed to the binary"))
-            .arg(Arg::with_name("TRIPLE").long("target")
-                 .help("target triple of the fuzz target"))
         )
         .subcommand(SubCommand::with_name("add").about("Add a new fuzz target")
                     .arg(Arg::with_name("TARGET").required(true)
@@ -63,7 +82,7 @@ fn main() {
         .subcommand(SubCommand::with_name("list").about("List all fuzz targets"));
     let args = app.get_matches();
 
-    ::std::process::exit(match args.subcommand() {
+    process::exit(match args.subcommand() {
         ("init", _) => FuzzProject::init().map(|_| ()),
         ("add", matches) =>
             FuzzProject::new().and_then(|p| p.add_target(matches.expect("arguments present"))),
@@ -168,7 +187,8 @@ impl FuzzProject {
         let corpus = args.values_of_os("CORPUS");
         let exec_args = args.values_of_os("ARGS")
                             .map(|v| v.collect::<Vec<_>>());
-        let target_triple = args.value_of_os("TRIPLE").unwrap_or_else(utils::default_target);
+        let target_triple = args.value_of_os("TRIPLE").expect("no triple");
+        let jobs: u16 = args.value_of("JOBS").expect("no triple").parse().expect("validation");
 
         let other_flags = env::var("RUSTFLAGS").unwrap_or_default();
         let mut rustflags: String = format!(
@@ -186,10 +206,14 @@ impl FuzzProject {
             rustflags.push_str(&other_flags);
         }
 
-        let mut cmd = process::Command::new("cargo");
-
+        let manifest_path = self.manifest_path();
         let mut artefact_arg = ffi::OsString::from("-artifact_prefix=");
         artefact_arg.push(self.artifacts_for(&target)?);
+
+        let mut cargo_args: Vec<&OsStr> = Vec::new();
+        let mut envs = Vec::new();
+
+        envs.push(("RUSTFLAGS", rustflags));
 
         // For asan and tsan we have default options. Merge them to the given options,
         // so users can still provide their own options to e.g. disable the leak sanitizer.
@@ -201,7 +225,7 @@ impl FuzzProject {
                     asan_opts.push(':');
                 }
                 asan_opts.push_str("detect_odr_violation=0");
-                cmd.env("ASAN_OPTIONS", &asan_opts);
+                envs.push(("ASAN_OPTIONS", asan_opts));
             }
 
             "thread" => {
@@ -210,28 +234,40 @@ impl FuzzProject {
                     tsan_opts.push(':');
                 }
                 tsan_opts.push_str("report_signal_unsafe=0");
-                cmd.env("TSAN_OPTIONS", &tsan_opts);
+                envs.push(("TSAN_OPTIONS", tsan_opts));
             }
 
             _ => {}
         }
 
-        cmd.env("RUSTFLAGS", rustflags)
-           .arg("run")
-           .arg("--manifest-path")
-           .arg(self.manifest_path());
+        cargo_args.push("--manifest-path".as_ref());
+        cargo_args.push(manifest_path.as_ref());
         if release {
-            cmd.arg("--release");
+            cargo_args.push("--release".as_ref());
         }
-        cmd.arg("--verbose")
-           .arg("--bin")
-           .arg(&target)
-           .arg("--target")
-           // won't pass rustflags to build scripts
-           .arg(target_triple)
-           .arg("--")
-           .arg(artefact_arg);
+        cargo_args.push("--verbose".as_ref());
+        cargo_args.push("--bin".as_ref());
+        cargo_args.push(&target.as_ref());
+        //--target=<TARGET> won't pass rustflags to build scripts
+        cargo_args.push("--target".as_ref());
+        cargo_args.push(target_triple.as_ref());
 
+        let mut cmd = process::Command::new("cargo");
+        cmd.arg("build")
+           .args(&cargo_args);
+        for &(ref k, ref v) in &envs { cmd.env(k, v); } // Command::envs still unstable
+        let status = cmd.status().chain_err(|| format!("could not execute: {:?}", cmd))?;
+        if !status.success() {
+            return Err(format!("could not build fuzz script: {:?}", cmd).into());
+        }
+
+        let mut cmd = process::Command::new("cargo");
+        cmd.arg("run")
+           .args(&cargo_args);
+        for &(ref k, ref v) in &envs { cmd.env(k, v); } // Command::envs still unstable
+
+        cmd.arg("--");
+        cmd.arg(artefact_arg);
         if let Some(args) = exec_args {
             for arg in args {
                 cmd.arg(arg);
@@ -245,8 +281,48 @@ impl FuzzProject {
             cmd.arg(self.corpus_for(&target)?);
         }
 
-        exec_cmd(&mut cmd).chain_err(|| format!("could not execute command: {:?}", cmd))?;
-        Ok(())
+        if jobs == 1 {
+            exec_cmd(&mut cmd).chain_err(|| format!("could not execute command: {:?}", cmd))?;
+            Ok(())
+        } else {
+            let mut core = Core::new().unwrap();
+            cmd.stdout(process::Stdio::piped());
+            cmd.stderr(process::Stdio::piped());
+            let mut chs = (0..jobs).map(|_| {
+                cmd.spawn_async(&core.handle()).chain_err(||
+                    format!("could not execute command: {:?}", cmd)
+                )
+            }).collect::<Result<Vec<_>>>()?;
+
+            let stdouts = futures::future::join_all(chs.iter_mut().enumerate().map(|(id, ch)| {
+                let buf = io::BufReader::with_capacity(256, ch.stdout().take().unwrap());
+                tokio_io::io::lines(buf).for_each(move |l| {
+                    writeln!(::std::io::stdout(), "[{}] {}", id, l)
+                })
+            }).collect::<Vec<_>>());
+            let stderrs = futures::future::join_all(chs.iter_mut().enumerate().map(|(id, ch)| {
+                let buf = io::BufReader::with_capacity(256, ch.stderr().take().unwrap());
+                tokio_io::io::lines(buf).for_each(move |l| {
+                    writeln!(::std::io::stderr(), "[{}] {}", id, l)
+                })
+            }).collect::<Vec<_>>());
+            let exits = futures::select_all(chs).then(|v| {
+                let (r, rest) = match v {
+                    Ok((_, n, v)) => { (futures::future::ok(n), v) },
+                    Err((e, _, v)) => { (futures::future::err(e), v) },
+                };
+                for mut ch in rest {
+                    let _ = ch.kill();
+                }
+                r
+            });
+
+            let (jobnum, _, _) = core.run(exits.join3(stdouts, stderrs))
+                .chain_err(|| format!("could not run the processes: {:?}", cmd))?;
+            println!("Worker {} finished fuzzing", jobnum);
+            Ok(())
+        }
+
     }
 
     fn path(&self) -> path::PathBuf {
