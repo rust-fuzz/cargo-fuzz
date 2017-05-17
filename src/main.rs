@@ -93,7 +93,7 @@ impl FuzzProject {
         };
         let manifest = project.manifest()?;
         if !is_fuzz_manifest(&manifest) {
-            return Err(format!("manifest `{:?}` does not look a cargo-fuzz manifest. \
+            return Err(format!("manifest `{:?}` does not look like a cargo-fuzz manifest. \
                                 Add following lines to override:\n\
                                 [package.metadata]\ncargo-fuzz = true",
                                 project.manifest_path()).into());
