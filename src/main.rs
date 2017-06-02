@@ -7,6 +7,7 @@
 
 extern crate toml;
 extern crate clap;
+extern crate tempdir;
 extern crate term;
 extern crate tokio_core;
 extern crate tokio_process;
@@ -87,6 +88,11 @@ Some useful options (to be used as `cargo fuzz run fuzz_target -- <options>`) in
  - `-only_ascii`: Only provide ASCII input
  - `-dict=<file>`: Use a keyword dictionary from specified file. See http://llvm.org/docs/LibFuzzer.html#dictionaries")
         )
+        .subcommand(fuzz_subcommand("cmin")
+             .about("Corpus minifier")
+             .arg(Arg::with_name("CORPUS")
+                  .help("directory with corpus to minify"))
+        )
         .subcommand(fuzz_subcommand("tmin")
              .about("Test case minifier")
              .arg(Arg::with_name("runs").long("runs")
@@ -116,6 +122,8 @@ Some useful options (to be used as `cargo fuzz run fuzz_target -- <options>`) in
             .and_then(|p| p.list_targets()),
         ("run", matches) => FuzzProject::new()
             .and_then(|p| p.exec_fuzz(matches.expect("arguments present"))),
+        ("cmin", matches) => FuzzProject::new()
+            .and_then(|p| p.exec_cmin(matches.expect("arguments present"))),
         ("tmin", matches) => FuzzProject::new()
             .and_then(|p| p.exec_tmin(matches.expect("arguments present"))),
         (s, _) => panic!("unimplemented subcommand {}!", s),
@@ -388,6 +396,39 @@ impl FuzzProject {
            .arg(args.value_of("CRASH").unwrap());
         exec_cmd(&mut cmd)
             .chain_err(|| format!("could not execute command: {:?}", cmd))?;
+        Ok(())
+    }
+
+    fn exec_cmin(&self, args: &ArgMatches) -> Result<()> {
+        let mut cmd = self.cmd(args)?;
+
+        let corpus = if let Some(corpus) = args.value_of("CORPUS") {
+            corpus.to_owned()
+        } else {
+            self.corpus_for(&get_target(args)?)?
+                .to_str().expect("CORPUS should be valid unicode")
+                .to_owned()
+        };
+
+        let tmp = tempdir::TempDir::new_in(self.path(), "cmin")?;
+
+        fs::create_dir(tmp.path().join("corpus"))?;
+
+        cmd.arg("-merge=1")
+            .arg(tmp.path().join("corpus"))
+            .arg(&corpus);
+
+        // Spawn cmd in child process instead of exec-ing it
+        let status = cmd.status()
+            .chain_err(|| format!("could not execute command: {:?}", cmd))?;
+        if status.success() {
+            // move corpus directory into tmp to auto delete it
+            fs::rename(&corpus, tmp.path().join("old"))?;
+            fs::rename(tmp.path().join("corpus"), corpus)?;
+        } else {
+            println!("Failed to minimize corpus: {}", status);
+        }
+
         Ok(())
     }
 
