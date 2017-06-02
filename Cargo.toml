@@ -7,10 +7,15 @@ description = "Simple wrapper around libFuzzer"
 repository = "https://github.com/rust-fuzz/cargo-fuzz/"
 
 [dependencies]
-toml            = "0.3"
-term            = "0.4"
-clap            = "2.21.1"
+clap            = "2.24"
 error-chain     = "0.10"
+futures         = "0.1"
+term            = "0.4"
+tokio-core      = "0.1"
+tokio-io        = "0.1"
+tokio-process   = "0.1"
+toml            = "0.3"
+
 
 [workspace]
 members = ["."]

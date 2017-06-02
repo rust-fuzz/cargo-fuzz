@@ -1,5 +1,4 @@
 use std::io::Write;
-use std::ffi::OsStr;
 use term;
 
 #[allow(dead_code)]
@@ -37,12 +36,12 @@ pub fn report_error(e: &super::Error) {
 
 /// The default target to pass to cargo, to workaround issue #11.
 #[cfg(target_os="macos")]
-pub fn default_target() -> &'static OsStr {
-    OsStr::new("x86_64-apple-darwin")
+pub fn default_target() -> &'static str {
+    "x86_64-apple-darwin"
 }
 
 /// The default target to pass to cargo, to workaround issue #11.
 #[cfg(not(target_os="macos"))]
-pub fn default_target() -> &'static OsStr {
-    OsStr::new("x86_64-unknown-linux-gnu")
+pub fn default_target() -> &'static str {
+    "x86_64-unknown-linux-gnu"
 }
