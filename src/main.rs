@@ -19,7 +19,6 @@ use clap::{App, Arg, SubCommand, ArgMatches, AppSettings};
 use std::{env, fs, path, ffi, process, io};
 use std::io::Write;
 use std::io::Read;
-use std::ffi::OsStr;
 
 use futures::{Future, Stream};
 use tokio_core::reactor::Core;
@@ -101,7 +100,7 @@ Some useful options (to be used as `cargo fuzz run fuzz_target -- <options>`) in
             FuzzProject::new().and_then(|p| p.add_target(matches.expect("arguments present"))),
         ("list", _) => FuzzProject::new().and_then(|p| p.list_targets()),
         ("run", matches) =>
-            FuzzProject::new().and_then(|p| p.exec_target(matches.expect("arguments present"))),
+            FuzzProject::new().and_then(|p| p.exec_fuzz(matches.expect("arguments present"))),
         (s, _) => panic!("unimplemented subcommand {}!", s),
     }.map(|_| 0).unwrap_or_else(|err| {
         utils::report_error(&err);
@@ -126,6 +125,12 @@ fn fuzz_subcommand(name: &str) -> App {
              .help("target triple of the fuzz target"))
         .arg(Arg::with_name("TARGET").required(true)
              .help("name of the fuzz target"))
+}
+
+fn get_target(args: &ArgMatches) -> Result<String> {
+    Ok(args.value_of_os("TARGET").expect("TARGET is required")
+       .to_os_string().into_string()
+       .map_err(|_| "TARGET must be valid unicode")?)
 }
 
 struct FuzzProject {
@@ -189,8 +194,7 @@ impl FuzzProject {
     }
 
     fn add_target(&self, args: &ArgMatches) -> Result<()> {
-        let target: String = args.value_of_os("TARGET").expect("TARGET is required").to_os_string()
-            .into_string().map_err(|_| "TARGET must be valid unicode")?;
+        let target = get_target(args)?;
         // Create corpus and artifact directories for the newly added target
         self.corpus_for(&target)?;
         self.artifacts_for(&target)?;
@@ -210,20 +214,22 @@ impl FuzzProject {
         Ok(cargo.write_fmt(toml_bin_template!(target))?)
     }
 
-    /// Fuzz a given fuzz target
-    fn exec_target<'a>(&self, args: &ArgMatches<'a>) -> Result<()> {
-        let target: String = args.value_of_os("TARGET").expect("TARGET is required").to_os_string()
-            .into_string().map_err(|_| "TARGET must be valid unicode")?;
-        let release: bool = args.is_present("release");
-        let assertions: bool = args.is_present("debug_assertions");
+    fn cargo(&self, name: &str, args: &ArgMatches) -> Result<process::Command> {
         let sanitizer: &str = args.value_of("sanitizer").expect("no sanitizer");
-        let corpus = args.values_of_os("CORPUS");
-        let exec_args = args.values_of_os("ARGS")
-                            .map(|v| v.collect::<Vec<_>>());
+        let target = get_target(args)?;
         let target_triple = args.value_of_os("TRIPLE").expect("no triple");
-        let jobs: u16 = args.value_of("JOBS").expect("no triple").parse().expect("validation");
 
-        let other_flags = env::var("RUSTFLAGS").unwrap_or_default();
+        let mut cmd = process::Command::new("cargo");
+        cmd.arg(name)
+            .arg("--manifest-path").arg(self.manifest_path())
+            .arg("--verbose")
+            .arg("--bin").arg(target)
+            // --target=<TARGET> won't pass rustflags to build scripts
+            .arg("--target").arg(target_triple);
+        if args.is_present("release") {
+            cmd.arg("--release");
+        }
+
         let mut rustflags: String = format!(
             "-Cpasses=sancov \
              -Cllvm-args=-sanitizer-coverage-level=3 \
@@ -231,26 +237,21 @@ impl FuzzProject {
              -Cpanic=abort",
             sanitizer = sanitizer,
         );
-        if assertions {
+        if args.is_present("debug_assertions") {
             rustflags.push_str(" -Cdebug-assertions");
         }
+
+        let other_flags = env::var("RUSTFLAGS").unwrap_or_default();
         if !other_flags.is_empty() {
             rustflags.push_str(" ");
             rustflags.push_str(&other_flags);
         }
+        cmd.env("RUSTFLAGS", rustflags);
 
-        let manifest_path = self.manifest_path();
-        let mut artefact_arg = ffi::OsString::from("-artifact_prefix=");
-        artefact_arg.push(self.artifacts_for(&target)?);
 
-        let mut cargo_args: Vec<&OsStr> = Vec::new();
-        let mut envs = Vec::new();
-
-        envs.push(("RUSTFLAGS", rustflags));
-
-        // For asan and tsan we have default options. Merge them to the given options,
-        // so users can still provide their own options to e.g. disable the leak sanitizer.
-        // Options are colon-separated.
+        // For asan and tsan we have default options. Merge them to the given
+        // options, so users can still provide their own options to e.g. disable
+        // the leak sanitizer.  Options are colon-separated.
         match sanitizer {
             "address" => {
                 let mut asan_opts = env::var("ASAN_OPTIONS").unwrap_or_default();
@@ -258,7 +259,7 @@ impl FuzzProject {
                     asan_opts.push(':');
                 }
                 asan_opts.push_str("detect_odr_violation=0");
-                envs.push(("ASAN_OPTIONS", asan_opts));
+                cmd.env("ASAN_OPTIONS", asan_opts);
             }
 
             "thread" => {
@@ -267,46 +268,46 @@ impl FuzzProject {
                     tsan_opts.push(':');
                 }
                 tsan_opts.push_str("report_signal_unsafe=0");
-                envs.push(("TSAN_OPTIONS", tsan_opts));
+                cmd.env("TSAN_OPTIONS", tsan_opts);
             }
 
             _ => {}
         }
 
-        cargo_args.push("--manifest-path".as_ref());
-        cargo_args.push(manifest_path.as_ref());
-        if release {
-            cargo_args.push("--release".as_ref());
-        }
-        cargo_args.push("--verbose".as_ref());
-        cargo_args.push("--bin".as_ref());
-        cargo_args.push(&target.as_ref());
-        //--target=<TARGET> won't pass rustflags to build scripts
-        cargo_args.push("--target".as_ref());
-        cargo_args.push(target_triple.as_ref());
+        Ok(cmd)
+    }
 
-        let mut cmd = process::Command::new("cargo");
-        cmd.arg("build")
-           .args(&cargo_args);
-        for &(ref k, ref v) in &envs { cmd.env(k, v); } // Command::envs still unstable
-        let status = cmd.status().chain_err(|| format!("could not execute: {:?}", cmd))?;
+    fn cmd(&self, args: &ArgMatches) -> Result<process::Command> {
+        let target = get_target(args)?;
+        let mut cmd = self.cargo("run", args)?;
+        let mut artefact_arg = ffi::OsString::from("-artifact_prefix=");
+        artefact_arg.push(self.artifacts_for(&target)?);
+
+        cmd.arg("--")
+           .arg(artefact_arg);
+
+        Ok(cmd)
+    }
+
+    /// Fuzz a given fuzz target
+    fn exec_fuzz<'a>(&self, args: &ArgMatches<'a>) -> Result<()> {
+        let target = get_target(args)?;
+
+        let mut cmd = self.cargo("build", args)?;
+        let status = cmd.status()
+            .chain_err(|| format!("could not execute: {:?}", cmd))?;
         if !status.success() {
             return Err(format!("could not build fuzz script: {:?}", cmd).into());
         }
 
-        let mut cmd = process::Command::new("cargo");
-        cmd.arg("run")
-           .args(&cargo_args);
-        for &(ref k, ref v) in &envs { cmd.env(k, v); } // Command::envs still unstable
+        let mut cmd = self.cmd(args)?;
 
-        cmd.arg("--");
-        cmd.arg(artefact_arg);
-        if let Some(args) = exec_args {
+        if let Some(args) = args.values_of_os("ARGS") {
             for arg in args {
                 cmd.arg(arg);
             }
         }
-        if let Some(corpus) = corpus {
+        if let Some(corpus) = args.values_of_os("CORPUS") {
             for arg in corpus {
                 cmd.arg(arg);
             }
@@ -314,6 +315,8 @@ impl FuzzProject {
             cmd.arg(self.corpus_for(&target)?);
         }
 
+        let jobs: u16 = args.value_of("JOBS").expect("no triple")
+            .parse().expect("validation");
         if jobs == 1 {
             exec_cmd(&mut cmd).chain_err(|| format!("could not execute command: {:?}", cmd))?;
             Ok(())
@@ -355,7 +358,6 @@ impl FuzzProject {
             println!("Worker {} finished fuzzing", jobnum);
             Ok(())
         }
-
     }
 
     fn path(&self) -> path::PathBuf {
