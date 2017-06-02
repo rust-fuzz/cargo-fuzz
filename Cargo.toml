@@ -14,7 +14,7 @@ term            = "0.4"
 tokio-core      = "0.1"
 tokio-io        = "0.1"
 tokio-process   = "0.1"
-toml            = "0.3"
+toml            = "0.4"
 
 
 [workspace]
