@@ -87,6 +87,20 @@ Some useful options (to be used as `cargo fuzz run fuzz_target -- <options>`) in
  - `-only_ascii`: Only provide ASCII input
  - `-dict=<file>`: Use a keyword dictionary from specified file. See http://llvm.org/docs/LibFuzzer.html#dictionaries")
         )
+        .subcommand(fuzz_subcommand("tmin")
+             .about("Test case minifier")
+             .arg(Arg::with_name("runs").long("runs")
+                  .help("number of attempts to minimize we should make")
+                  .takes_value(true)
+                  .default_value("255")
+                 .validator(|v| Err(From::from(match v.parse::<u32>() {
+                     Ok(0) => "0 jobs?",
+                     Err(_) => "must be a valid integer representing a sane number of jobs",
+                     _ => return Ok(()),
+                 }))))
+             .arg(Arg::with_name("CRASH")
+                  .help("crashing test case to minimize"))
+        )
         .subcommand(SubCommand::with_name("add").about("Add a new fuzz target")
                     .arg(Arg::with_name("TARGET").required(true)
                          .help("name of the fuzz target"))
@@ -96,11 +110,14 @@ Some useful options (to be used as `cargo fuzz run fuzz_target -- <options>`) in
 
     process::exit(match args.subcommand() {
         ("init", matches) => FuzzProject::init(matches.expect("arguments present")).map(|_| ()),
-        ("add", matches) =>
-            FuzzProject::new().and_then(|p| p.add_target(matches.expect("arguments present"))),
-        ("list", _) => FuzzProject::new().and_then(|p| p.list_targets()),
-        ("run", matches) =>
-            FuzzProject::new().and_then(|p| p.exec_fuzz(matches.expect("arguments present"))),
+        ("add", matches) => FuzzProject::new()
+            .and_then(|p| p.add_target(matches.expect("arguments present"))),
+        ("list", _) => FuzzProject::new()
+            .and_then(|p| p.list_targets()),
+        ("run", matches) => FuzzProject::new()
+            .and_then(|p| p.exec_fuzz(matches.expect("arguments present"))),
+        ("tmin", matches) => FuzzProject::new()
+            .and_then(|p| p.exec_tmin(matches.expect("arguments present"))),
         (s, _) => panic!("unimplemented subcommand {}!", s),
     }.map(|_| 0).unwrap_or_else(|err| {
         utils::report_error(&err);
@@ -358,6 +375,20 @@ impl FuzzProject {
             println!("Worker {} finished fuzzing", jobnum);
             Ok(())
         }
+    }
+
+    fn exec_tmin(&self, args: &ArgMatches) -> Result<()> {
+        let mut cmd = self.cmd(args)?;
+
+        let runs: u32 = args.value_of("runs").unwrap()
+            .parse().expect("runs should be int");
+
+        cmd.arg("-minimize_crash=1")
+           .arg(format!("-runs={}", runs))
+           .arg(args.value_of("CRASH").unwrap());
+        exec_cmd(&mut cmd)
+            .chain_err(|| format!("could not execute command: {:?}", cmd))?;
+        Ok(())
     }
 
     fn path(&self) -> path::PathBuf {
