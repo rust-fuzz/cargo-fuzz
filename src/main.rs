@@ -45,7 +45,10 @@ fn main() {
         // cargo passes in the subcommand name to the invoked executable. Use a hidden, optional
         // positional argument to deal with it?
         .arg(Arg::with_name("dummy").possible_value("fuzz").required(false).hidden(true))
-        .subcommand(SubCommand::with_name("init").about("Initialize the fuzz folder"))
+        .subcommand(SubCommand::with_name("init").about("Initialize the fuzz folder")
+            .arg(Arg::with_name("target").long("target").short("t").required(false)
+                 .default_value("fuzzer_script_1")
+                 .help("name of the first fuzz target to create")))
         .subcommand(SubCommand::with_name("run").about("Run the fuzz target in fuzz/fuzzers")
             .arg(Arg::with_name("release").long("release").short("O")
                  .help("Build artifacts in release mode, with optimizations"))
@@ -83,7 +86,7 @@ fn main() {
     let args = app.get_matches();
 
     process::exit(match args.subcommand() {
-        ("init", _) => FuzzProject::init().map(|_| ()),
+        ("init", matches) => FuzzProject::init(matches.expect("arguments present")).map(|_| ()),
         ("add", matches) =>
             FuzzProject::new().and_then(|p| p.add_target(matches.expect("arguments present"))),
         ("list", _) => FuzzProject::new().and_then(|p| p.list_targets()),
@@ -124,13 +127,15 @@ impl FuzzProject {
     /// Create the fuzz project structure
     ///
     /// This will not clone libfuzzer-sys
-    fn init() -> Result<Self> {
+    fn init(args: &ArgMatches) -> Result<Self> {
         let project = FuzzProject {
             root_project: find_package()?,
             targets: Vec::new(),
         };
         let fuzz_project = project.path();
         let root_project_name = try!(project.root_project_name());
+        let target: String = args.value_of_os("target").expect("target shoud have a default value").to_os_string()
+            .into_string().map_err(|_| "target must be valid unicode")?;
 
         // TODO: check if the project is already initialized
         fs::create_dir(&fuzz_project)?;
@@ -142,9 +147,8 @@ impl FuzzProject {
         let mut ignore = fs::File::create(fuzz_project.join(".gitignore"))?;
         ignore.write_fmt(gitignore_template!())?;
 
-        const TARGET: &'static str = "fuzzer_script_1";
-        project.create_target_template(TARGET)
-               .chain_err(|| format!("could not create template file for target {:?}", TARGET))?;
+        project.create_target_template(&target)
+               .chain_err(|| format!("could not create template file for target {:?}", target))?;
         Ok(project)
     }
 
