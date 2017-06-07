@@ -49,7 +49,20 @@ fn main() {
             .arg(Arg::with_name("target").long("target").short("t").required(false)
                  .default_value("fuzzer_script_1")
                  .help("name of the first fuzz target to create")))
-        .subcommand(SubCommand::with_name("run").about("Run the fuzz target in fuzz/fuzzers")
+        .subcommand(SubCommand::with_name("run").long_about("Run the fuzz target in fuzz/fuzzers")
+            .about(
+"
+
+Run the fuzzer on a given target. Example usage:
+  cargo fuzz run fuzzer_script_1
+The fuzz target name is the same as the name of the fuzz target script \
+in fuzz/fuzzers, i.e. the name picked when running `cargo fuzz add`
+
+This will run the script inside the fuzz target with varying inputs \
+until it finds a crash, at which point it will save the crash input \
+to the artifact directory, print some output, and exit. Unless you \
+configure it otherwise (see libFuzzer options below), \
+this will run indefinitely.")
             .arg(Arg::with_name("release").long("release").short("O")
                  .help("Build artifacts in release mode, with optimizations"))
             .arg(Arg::with_name("debug_assertions").long("debug-assertions").short("a")
@@ -77,6 +90,17 @@ fn main() {
                  }))))
             .arg(Arg::with_name("ARGS").multiple(true).last(true)
                  .help("additional libFuzzer arguments passed to the binary"))
+            .after_help(
+"A full list of libFuzzer options can be found at http://llvm.org/docs/LibFuzzer.html#options \
+You can also get this by running `cargo fuzz run fuzz_target -- -help=1`
+
+Some useful options (to be used as `cargo fuzz run fuzz_target -- <options>`) include:
+ - `-max_len=<len>`: Will limit the length of the input string to `<len>`
+ - `-runs=<number>`: Will limit the number of tries (runs) before it gives up
+ - `-max_total_time=<time>`: Will limit the amount of time to fuzz before it gives up
+ - `-timeout=<time>`: Will limit the amount of time for a single run before it considers that run a failure
+ - `-only_ascii`: Only provide ASCII input
+ - `-dict=<file>`: Use a keyword dictionary from specified file. See http://llvm.org/docs/LibFuzzer.html#dictionaries")
         )
         .subcommand(SubCommand::with_name("add").about("Add a new fuzz target")
                     .arg(Arg::with_name("TARGET").required(true)
