@@ -221,7 +221,8 @@ impl FuzzProject {
         let other_flags = env::var("RUSTFLAGS").unwrap_or_default();
         let mut rustflags: String = format!(
             "-Cpasses=sancov \
-             -Cllvm-args=-sanitizer-coverage-level=3 \
+             -Cllvm-args=-sanitizer-coverage-level=4 \
+             -Cllvm-args=-sanitizer-coverage-trace-pc \
              -Zsanitizer={sanitizer} \
              -Cpanic=abort",
             sanitizer = sanitizer,
