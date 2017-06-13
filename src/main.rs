@@ -7,6 +7,7 @@
 
 extern crate toml;
 extern crate clap;
+extern crate tempdir;
 extern crate term;
 extern crate tokio_core;
 extern crate tokio_process;
@@ -19,7 +20,6 @@ use clap::{App, Arg, SubCommand, ArgMatches, AppSettings};
 use std::{env, fs, path, ffi, process, io};
 use std::io::Write;
 use std::io::Read;
-use std::ffi::OsStr;
 
 use futures::{Future, Stream};
 use tokio_core::reactor::Core;
@@ -49,7 +49,7 @@ fn main() {
             .arg(Arg::with_name("target").long("target").short("t").required(false)
                  .default_value("fuzzer_script_1")
                  .help("name of the first fuzz target to create")))
-        .subcommand(SubCommand::with_name("run").long_about("Run the fuzz target in fuzz/fuzzers")
+        .subcommand(fuzz_subcommand("run")
             .about(
 "
 
@@ -63,22 +63,8 @@ until it finds a crash, at which point it will save the crash input \
 to the artifact directory, print some output, and exit. Unless you \
 configure it otherwise (see libFuzzer options below), \
 this will run indefinitely.")
-            .arg(Arg::with_name("release").long("release").short("O")
-                 .help("Build artifacts in release mode, with optimizations"))
-            .arg(Arg::with_name("debug_assertions").long("debug-assertions").short("a")
-                 .help("Build artifacts with debug assertions enabled (default if not -O)"))
-            .arg(Arg::with_name("sanitizer").long("sanitizer").short("s")
-                 .takes_value(true)
-                 .possible_values(&["address", "leak", "memory", "thread"])
-                 .default_value("address")
-                 .help("Use different sanitizer"))
-            .arg(Arg::with_name("TARGET").required(true)
-                 .help("name of the fuzz target"))
             .arg(Arg::with_name("CORPUS").multiple(true)
                  .help("custom corpus directory or artefact files"))
-            .arg(Arg::with_name("TRIPLE").long("target")
-                 .default_value(utils::default_target())
-                 .help("target triple of the fuzz target"))
             .arg(Arg::with_name("JOBS").long("jobs").short("j")
                  .takes_value(true)
                  .default_value("1")
@@ -102,6 +88,25 @@ Some useful options (to be used as `cargo fuzz run fuzz_target -- <options>`) in
  - `-only_ascii`: Only provide ASCII input
  - `-dict=<file>`: Use a keyword dictionary from specified file. See http://llvm.org/docs/LibFuzzer.html#dictionaries")
         )
+        .subcommand(fuzz_subcommand("cmin")
+             .about("Corpus minifier")
+             .arg(Arg::with_name("CORPUS")
+                  .help("directory with corpus to minify"))
+        )
+        .subcommand(fuzz_subcommand("tmin")
+             .about("Test case minifier")
+             .arg(Arg::with_name("runs").long("runs")
+                  .help("number of attempts to minimize we should make")
+                  .takes_value(true)
+                  .default_value("255")
+                 .validator(|v| Err(From::from(match v.parse::<u32>() {
+                     Ok(0) => "0 jobs?",
+                     Err(_) => "must be a valid integer representing a sane number of jobs",
+                     _ => return Ok(()),
+                 }))))
+             .arg(Arg::with_name("CRASH")
+                  .help("crashing test case to minimize"))
+        )
         .subcommand(SubCommand::with_name("add").about("Add a new fuzz target")
                     .arg(Arg::with_name("TARGET").required(true)
                          .help("name of the fuzz target"))
@@ -111,16 +116,46 @@ Some useful options (to be used as `cargo fuzz run fuzz_target -- <options>`) in
 
     process::exit(match args.subcommand() {
         ("init", matches) => FuzzProject::init(matches.expect("arguments present")).map(|_| ()),
-        ("add", matches) =>
-            FuzzProject::new().and_then(|p| p.add_target(matches.expect("arguments present"))),
-        ("list", _) => FuzzProject::new().and_then(|p| p.list_targets()),
-        ("run", matches) =>
-            FuzzProject::new().and_then(|p| p.exec_target(matches.expect("arguments present"))),
+        ("add", matches) => FuzzProject::new()
+            .and_then(|p| p.add_target(matches.expect("arguments present"))),
+        ("list", _) => FuzzProject::new()
+            .and_then(|p| p.list_targets()),
+        ("run", matches) => FuzzProject::new()
+            .and_then(|p| p.exec_fuzz(matches.expect("arguments present"))),
+        ("cmin", matches) => FuzzProject::new()
+            .and_then(|p| p.exec_cmin(matches.expect("arguments present"))),
+        ("tmin", matches) => FuzzProject::new()
+            .and_then(|p| p.exec_tmin(matches.expect("arguments present"))),
         (s, _) => panic!("unimplemented subcommand {}!", s),
     }.map(|_| 0).unwrap_or_else(|err| {
         utils::report_error(&err);
         1
     }));
+}
+
+fn fuzz_subcommand(name: &str) -> App {
+    SubCommand::with_name(name)
+        .arg(Arg::with_name("release").long("release").short("O")
+             .help("Build artifacts in release mode, with optimizations"))
+        .arg(Arg::with_name("debug_assertions")
+             .long("debug-assertions").short("a")
+             .help("Build artifacts with debug assertions enabled (default if not -O)"))
+        .arg(Arg::with_name("sanitizer").long("sanitizer").short("s")
+             .takes_value(true)
+             .possible_values(&["address", "leak", "memory", "thread"])
+             .default_value("address")
+             .help("Use different sanitizer"))
+        .arg(Arg::with_name("TRIPLE").long("target")
+             .default_value(utils::default_target())
+             .help("target triple of the fuzz target"))
+        .arg(Arg::with_name("TARGET").required(true)
+             .help("name of the fuzz target"))
+}
+
+fn get_target(args: &ArgMatches) -> Result<String> {
+    Ok(args.value_of_os("TARGET").expect("TARGET is required")
+       .to_os_string().into_string()
+       .map_err(|_| "TARGET must be valid unicode")?)
 }
 
 struct FuzzProject {
@@ -184,8 +219,7 @@ impl FuzzProject {
     }
 
     fn add_target(&self, args: &ArgMatches) -> Result<()> {
-        let target: String = args.value_of_os("TARGET").expect("TARGET is required").to_os_string()
-            .into_string().map_err(|_| "TARGET must be valid unicode")?;
+        let target = get_target(args)?;
         // Create corpus and artifact directories for the newly added target
         self.corpus_for(&target)?;
         self.artifacts_for(&target)?;
@@ -205,20 +239,22 @@ impl FuzzProject {
         Ok(cargo.write_fmt(toml_bin_template!(target))?)
     }
 
-    /// Fuzz a given fuzz target
-    fn exec_target<'a>(&self, args: &ArgMatches<'a>) -> Result<()> {
-        let target: String = args.value_of_os("TARGET").expect("TARGET is required").to_os_string()
-            .into_string().map_err(|_| "TARGET must be valid unicode")?;
-        let release: bool = args.is_present("release");
-        let assertions: bool = args.is_present("debug_assertions");
+    fn cargo(&self, name: &str, args: &ArgMatches) -> Result<process::Command> {
         let sanitizer: &str = args.value_of("sanitizer").expect("no sanitizer");
-        let corpus = args.values_of_os("CORPUS");
-        let exec_args = args.values_of_os("ARGS")
-                            .map(|v| v.collect::<Vec<_>>());
+        let target = get_target(args)?;
         let target_triple = args.value_of_os("TRIPLE").expect("no triple");
-        let jobs: u16 = args.value_of("JOBS").expect("no triple").parse().expect("validation");
 
-        let other_flags = env::var("RUSTFLAGS").unwrap_or_default();
+        let mut cmd = process::Command::new("cargo");
+        cmd.arg(name)
+            .arg("--manifest-path").arg(self.manifest_path())
+            .arg("--verbose")
+            .arg("--bin").arg(target)
+            // --target=<TARGET> won't pass rustflags to build scripts
+            .arg("--target").arg(target_triple);
+        if args.is_present("release") {
+            cmd.arg("--release");
+        }
+
         let mut rustflags: String = format!(
             "-Cpasses=sancov \
              -Cllvm-args=-sanitizer-coverage-level=3 \
@@ -226,26 +262,21 @@ impl FuzzProject {
              -Cpanic=abort",
             sanitizer = sanitizer,
         );
-        if assertions {
+        if args.is_present("debug_assertions") {
             rustflags.push_str(" -Cdebug-assertions");
         }
+
+        let other_flags = env::var("RUSTFLAGS").unwrap_or_default();
         if !other_flags.is_empty() {
             rustflags.push_str(" ");
             rustflags.push_str(&other_flags);
         }
+        cmd.env("RUSTFLAGS", rustflags);
 
-        let manifest_path = self.manifest_path();
-        let mut artefact_arg = ffi::OsString::from("-artifact_prefix=");
-        artefact_arg.push(self.artifacts_for(&target)?);
 
-        let mut cargo_args: Vec<&OsStr> = Vec::new();
-        let mut envs = Vec::new();
-
-        envs.push(("RUSTFLAGS", rustflags));
-
-        // For asan and tsan we have default options. Merge them to the given options,
-        // so users can still provide their own options to e.g. disable the leak sanitizer.
-        // Options are colon-separated.
+        // For asan and tsan we have default options. Merge them to the given
+        // options, so users can still provide their own options to e.g. disable
+        // the leak sanitizer.  Options are colon-separated.
         match sanitizer {
             "address" => {
                 let mut asan_opts = env::var("ASAN_OPTIONS").unwrap_or_default();
@@ -253,7 +284,7 @@ impl FuzzProject {
                     asan_opts.push(':');
                 }
                 asan_opts.push_str("detect_odr_violation=0");
-                envs.push(("ASAN_OPTIONS", asan_opts));
+                cmd.env("ASAN_OPTIONS", asan_opts);
             }
 
             "thread" => {
@@ -262,46 +293,46 @@ impl FuzzProject {
                     tsan_opts.push(':');
                 }
                 tsan_opts.push_str("report_signal_unsafe=0");
-                envs.push(("TSAN_OPTIONS", tsan_opts));
+                cmd.env("TSAN_OPTIONS", tsan_opts);
             }
 
             _ => {}
         }
 
-        cargo_args.push("--manifest-path".as_ref());
-        cargo_args.push(manifest_path.as_ref());
-        if release {
-            cargo_args.push("--release".as_ref());
-        }
-        cargo_args.push("--verbose".as_ref());
-        cargo_args.push("--bin".as_ref());
-        cargo_args.push(&target.as_ref());
-        //--target=<TARGET> won't pass rustflags to build scripts
-        cargo_args.push("--target".as_ref());
-        cargo_args.push(target_triple.as_ref());
+        Ok(cmd)
+    }
 
-        let mut cmd = process::Command::new("cargo");
-        cmd.arg("build")
-           .args(&cargo_args);
-        for &(ref k, ref v) in &envs { cmd.env(k, v); } // Command::envs still unstable
-        let status = cmd.status().chain_err(|| format!("could not execute: {:?}", cmd))?;
+    fn cmd(&self, args: &ArgMatches) -> Result<process::Command> {
+        let target = get_target(args)?;
+        let mut cmd = self.cargo("run", args)?;
+        let mut artefact_arg = ffi::OsString::from("-artifact_prefix=");
+        artefact_arg.push(self.artifacts_for(&target)?);
+
+        cmd.arg("--")
+           .arg(artefact_arg);
+
+        Ok(cmd)
+    }
+
+    /// Fuzz a given fuzz target
+    fn exec_fuzz<'a>(&self, args: &ArgMatches<'a>) -> Result<()> {
+        let target = get_target(args)?;
+
+        let mut cmd = self.cargo("build", args)?;
+        let status = cmd.status()
+            .chain_err(|| format!("could not execute: {:?}", cmd))?;
         if !status.success() {
             return Err(format!("could not build fuzz script: {:?}", cmd).into());
         }
 
-        let mut cmd = process::Command::new("cargo");
-        cmd.arg("run")
-           .args(&cargo_args);
-        for &(ref k, ref v) in &envs { cmd.env(k, v); } // Command::envs still unstable
+        let mut cmd = self.cmd(args)?;
 
-        cmd.arg("--");
-        cmd.arg(artefact_arg);
-        if let Some(args) = exec_args {
+        if let Some(args) = args.values_of_os("ARGS") {
             for arg in args {
                 cmd.arg(arg);
             }
         }
-        if let Some(corpus) = corpus {
+        if let Some(corpus) = args.values_of_os("CORPUS") {
             for arg in corpus {
                 cmd.arg(arg);
             }
@@ -309,6 +340,8 @@ impl FuzzProject {
             cmd.arg(self.corpus_for(&target)?);
         }
 
+        let jobs: u16 = args.value_of("JOBS").expect("no triple")
+            .parse().expect("validation");
         if jobs == 1 {
             exec_cmd(&mut cmd).chain_err(|| format!("could not execute command: {:?}", cmd))?;
             Ok(())
@@ -350,7 +383,53 @@ impl FuzzProject {
             println!("Worker {} finished fuzzing", jobnum);
             Ok(())
         }
+    }
 
+    fn exec_tmin(&self, args: &ArgMatches) -> Result<()> {
+        let mut cmd = self.cmd(args)?;
+
+        let runs: u32 = args.value_of("runs").unwrap()
+            .parse().expect("runs should be int");
+
+        cmd.arg("-minimize_crash=1")
+           .arg(format!("-runs={}", runs))
+           .arg(args.value_of("CRASH").unwrap());
+        exec_cmd(&mut cmd)
+            .chain_err(|| format!("could not execute command: {:?}", cmd))?;
+        Ok(())
+    }
+
+    fn exec_cmin(&self, args: &ArgMatches) -> Result<()> {
+        let mut cmd = self.cmd(args)?;
+
+        let corpus = if let Some(corpus) = args.value_of("CORPUS") {
+            corpus.to_owned()
+        } else {
+            self.corpus_for(&get_target(args)?)?
+                .to_str().expect("CORPUS should be valid unicode")
+                .to_owned()
+        };
+
+        let tmp = tempdir::TempDir::new_in(self.path(), "cmin")?;
+
+        fs::create_dir(tmp.path().join("corpus"))?;
+
+        cmd.arg("-merge=1")
+            .arg(tmp.path().join("corpus"))
+            .arg(&corpus);
+
+        // Spawn cmd in child process instead of exec-ing it
+        let status = cmd.status()
+            .chain_err(|| format!("could not execute command: {:?}", cmd))?;
+        if status.success() {
+            // move corpus directory into tmp to auto delete it
+            fs::rename(&corpus, tmp.path().join("old"))?;
+            fs::rename(tmp.path().join("corpus"), corpus)?;
+        } else {
+            println!("Failed to minimize corpus: {}", status);
+        }
+
+        Ok(())
     }
 
     fn path(&self) -> path::PathBuf {
