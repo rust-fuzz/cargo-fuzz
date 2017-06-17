@@ -27,7 +27,7 @@ macro_rules! toml_bin_template {
 format_args!(r#"
 [[bin]]
 name = "{0}"
-path = "fuzzers/{0}.rs"
+path = "fuzz_targets/{0}.rs"
 "#, $name)
     }
 }
