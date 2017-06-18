@@ -36,6 +36,9 @@ error_chain! {
     }
 }
 
+static FUZZ_TARGETS_DIR_OLD: &'static str = "fuzzers";
+static FUZZ_TARGETS_DIR: &'static str = "fuzz_targets";
+
 fn main() {
     let app = App::new("cargo-fuzz")
         .version(option_env!("CARGO_PKG_VERSION").unwrap_or("0.0.0"))
@@ -47,16 +50,16 @@ fn main() {
         .arg(Arg::with_name("dummy").possible_value("fuzz").required(false).hidden(true))
         .subcommand(SubCommand::with_name("init").about("Initialize the fuzz folder")
             .arg(Arg::with_name("target").long("target").short("t").required(false)
-                 .default_value("fuzzer_script_1")
+                 .default_value("fuzz_target_1")
                  .help("name of the first fuzz target to create")))
         .subcommand(fuzz_subcommand("run")
             .about(
 "
 
-Run the fuzzer on a given target. Example usage:
-  cargo fuzz run fuzzer_script_1
+Run the fuzz target on a given target. Example usage:
+  cargo fuzz run fuzz_target_1
 The fuzz target name is the same as the name of the fuzz target script \
-in fuzz/fuzzers, i.e. the name picked when running `cargo fuzz add`
+in fuzz/fuzz_targets/, i.e. the name picked when running `cargo fuzz add`
 
 This will run the script inside the fuzz target with varying inputs \
 until it finds a crash, at which point it will save the crash input \
@@ -198,7 +201,7 @@ impl FuzzProject {
 
         // TODO: check if the project is already initialized
         fs::create_dir(&fuzz_project)?;
-        fs::create_dir(fuzz_project.join("fuzzers"))?;
+        fs::create_dir(fuzz_project.join(FUZZ_TARGETS_DIR))?;
 
         let mut cargo = fs::File::create(fuzz_project.join("Cargo.toml"))?;
         cargo.write_fmt(toml_template!(root_project_name))?;
@@ -461,7 +464,14 @@ impl FuzzProject {
 
     fn target_path(&self, target: &str) -> path::PathBuf {
         let mut root = self.path();
-        root.push("fuzzers");
+        if root.join(FUZZ_TARGETS_DIR_OLD).exists() {
+            println!("warning: The `fuzz/fuzzers/` directory has renamed to `fuzz/fuzz_targets/`. \
+                      Please rename the directory as such. This will become a hard error in the \
+                      future.");
+            root.push(FUZZ_TARGETS_DIR_OLD);
+        } else {
+            root.push(FUZZ_TARGETS_DIR);
+        }
         root.push(target);
         root.set_extension("rs");
         root
