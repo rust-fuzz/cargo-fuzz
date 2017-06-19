@@ -67,7 +67,7 @@ to the artifact directory, print some output, and exit. Unless you \
 configure it otherwise (see libFuzzer options below), \
 this will run indefinitely.")
             .arg(Arg::with_name("CORPUS").multiple(true)
-                 .help("custom corpus directory or artefact files"))
+                 .help("custom corpus directory or artifact files"))
             .arg(Arg::with_name("JOBS").long("jobs").short("j")
                  .takes_value(true)
                  .default_value("1")
@@ -308,11 +308,11 @@ impl FuzzProject {
     fn cmd(&self, args: &ArgMatches) -> Result<process::Command> {
         let target = get_target(args)?;
         let mut cmd = self.cargo("run", args)?;
-        let mut artefact_arg = ffi::OsString::from("-artifact_prefix=");
-        artefact_arg.push(self.artifacts_for(&target)?);
+        let mut artifact_arg = ffi::OsString::from("-artifact_prefix=");
+        artifact_arg.push(self.artifacts_for(&target)?);
 
         cmd.arg("--")
-           .arg(artefact_arg);
+           .arg(artifact_arg);
 
         Ok(cmd)
     }
