@@ -61,6 +61,7 @@ fn main() {
         .about(option_env!("CARGO_PKG_DESCRIPTION").unwrap_or(""))
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .setting(AppSettings::GlobalVersion)
+        .setting(AppSettings::DeriveDisplayOrder)
         // cargo passes in the subcommand name to the invoked executable. Use a hidden, optional
         // positional argument to deal with it?
         .arg(Arg::with_name("dummy")
@@ -84,8 +85,8 @@ in fuzz/fuzz_targets/, i.e. the name picked when running `cargo fuzz add`.
 This will run the script inside the fuzz target with varying inputs \
 until it finds a crash, at which point it will save the crash input \
 to the artifact directory, print some output, and exit. Unless you \
-configure it otherwise (see libFuzzer options below), \
-this will run indefinitely.")
+configure it otherwise (see libFuzzer options below), this will run \
+indefinitely.")
             .arg(Arg::with_name("CORPUS")
                  .multiple(true)
                  .help("Custom corpus directory or artifact files"))
@@ -162,12 +163,23 @@ Some useful options (to be used as `cargo fuzz run fuzz_target -- <options>`) in
 
 fn fuzz_subcommand(name: &str) -> App {
     SubCommand::with_name(name)
+        .setting(AppSettings::DeriveDisplayOrder)
         .arg(Arg::with_name("release")
              .long("release").short("O")
              .help("Build artifacts in release mode, with optimizations"))
         .arg(Arg::with_name("debug_assertions")
              .long("debug-assertions").short("a")
              .help("Build artifacts with debug assertions enabled (default if not -O)"))
+        .arg(Arg::with_name("no_default_features")
+             .long("no-default-features")
+             .help("Build artifacts with default Cargo features disabled"))
+        .arg(Arg::with_name("all_features")
+             .long("all-features")
+             .help("Build artifacts with all Cargo features enabled"))
+        .arg(Arg::with_name("features")
+             .long("features")
+             .takes_value(true)
+             .help("Build artifacts with given Cargo feature enabled"))
         .arg(Arg::with_name("sanitizer")
              .long("sanitizer").short("s")
              .takes_value(true)
@@ -283,6 +295,15 @@ impl FuzzProject {
             .arg("--target").arg(target_triple);
         if args.is_present("release") {
             cmd.arg("--release");
+        }
+        if args.is_present("no_default_features") {
+            cmd.arg("--no-default-features");
+        }
+        if args.is_present("all_features") {
+            cmd.arg("--all-features");
+        }
+        if let Some(value) = args.value_of("features") {
+            cmd.arg("--features").arg(value);
         }
 
         let mut rustflags: String = format!(

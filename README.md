@@ -51,6 +51,18 @@ Once you have found something and believe you have fixed it, re-run the fuzz tar
 $ cargo fuzz run fuzz_target_1 fuzz/artifacts/fuzz_target_1/<file mentioned in crash output>
 ```
 
+### Conditional compilation
+
+It is possible to fuzz crates with different configurations of Cargo features by using
+the command line options `--features`, `--no-default-features` and `--all-features`.
+Note that these options control the `fuzz` crate; you will need to forward them to
+the crate being fuzzed by e.g. adding the following to `fuzz/Cargo.toml`:
+
+```toml
+[features]
+unsafe = ["project/unsafe"]
+```
+
 ## Trophy case
 
 The trophy case has moved to a separate dedicated repository:
