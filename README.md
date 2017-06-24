@@ -31,6 +31,10 @@ body to hit the entry point you need.
 You can add more fuzz target scripts via `cargo fuzz add name_of_script`. There
 is a `Cargo.toml` in the `fuzz/` folder where you can add dependencies.
 
+You can add initial corpus for your fuzz target by placing a file with any name into
+the `fuzz/corpus/fuzz_target_1/` folder. Starting with a corpus that exercises many control paths
+will greatly speed up fuzzing.
+
 To fuzz a fuzz target, run:
 
 ```sh
