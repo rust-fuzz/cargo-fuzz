@@ -51,12 +51,13 @@ fn main() {
              .possible_value("fuzz")
              .required(false)
              .hidden(true))
-        .subcommand(SubCommand::with_name("init").about("Initialize the fuzz folder")
+        .subcommand(SubCommand::with_name("init")
+            .about("Initialize the fuzz folder")
             .arg(Arg::with_name("target")
                  .long("target").short("t")
                  .required(false)
                  .default_value("fuzz_target_1")
-                 .help("name of the first fuzz target to create")))
+                 .help("Name of the first fuzz target to create")))
         .subcommand(fuzz_subcommand("run")
             .about(
 "
@@ -73,12 +74,12 @@ configure it otherwise (see libFuzzer options below), \
 this will run indefinitely.")
             .arg(Arg::with_name("CORPUS")
                  .multiple(true)
-                 .help("custom corpus directory or artifact files"))
+                 .help("Custom corpus directory or artifact files"))
             .arg(Arg::with_name("JOBS")
                  .long("jobs").short("j")
                  .takes_value(true)
                  .default_value("1")
-                 .help("number of concurrent jobs to run")
+                 .help("Number of concurrent jobs to run")
                  .validator(|v| Err(From::from(match v.parse::<u16>() {
                      Ok(0) => "0 jobs?",
                      Err(_) => "must be a valid integer representing a sane number of jobs",
@@ -87,7 +88,7 @@ this will run indefinitely.")
             .arg(Arg::with_name("ARGS")
                  .multiple(true)
                  .last(true)
-                 .help("additional libFuzzer arguments passed to the binary"))
+                 .help("Additional libFuzzer arguments passed to the binary"))
             .after_help(
 "A full list of libFuzzer options can be found at http://llvm.org/docs/LibFuzzer.html#options \
 You can also get this by running `cargo fuzz run fuzz_target -- -help=1`
@@ -108,7 +109,7 @@ Some useful options (to be used as `cargo fuzz run fuzz_target -- <options>`) in
         .subcommand(fuzz_subcommand("tmin")
              .about("Test case minifier")
              .arg(Arg::with_name("runs").long("runs")
-                  .help("number of attempts to minimize we should make")
+                  .help("Number of attempts to minimize we should make")
                   .takes_value(true)
                   .default_value("255")
                   .validator(|v| Err(From::from(match v.parse::<u32>() {
@@ -117,11 +118,11 @@ Some useful options (to be used as `cargo fuzz run fuzz_target -- <options>`) in
                       _ => return Ok(()),
                   }))))
              .arg(Arg::with_name("CRASH")
-                  .help("crashing test case to minimize"))
+                  .help("Crashing test case to minimize"))
         )
         .subcommand(SubCommand::with_name("add").about("Add a new fuzz target")
                     .arg(Arg::with_name("TARGET").required(true)
-                         .help("name of the fuzz target"))
+                         .help("Name of the fuzz target"))
         )
         .subcommand(SubCommand::with_name("list").about("List all fuzz targets"));
     let args = app.get_matches();
@@ -162,9 +163,9 @@ fn fuzz_subcommand(name: &str) -> App {
         .arg(Arg::with_name("TRIPLE")
              .long("target")
              .default_value(utils::default_target())
-             .help("target triple of the fuzz target"))
+             .help("Target triple of the fuzz target"))
         .arg(Arg::with_name("TARGET").required(true)
-             .help("name of the fuzz target"))
+             .help("Name of the fuzz target"))
 }
 
 fn get_target(args: &ArgMatches) -> Result<String> {
