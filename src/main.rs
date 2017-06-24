@@ -39,6 +39,22 @@ error_chain! {
 static FUZZ_TARGETS_DIR_OLD: &'static str = "fuzzers";
 static FUZZ_TARGETS_DIR: &'static str = "fuzz_targets";
 
+// clap's long_about() makes `cargo fuzz --help` unreadable,
+// and clap's before_help() injects our long about text before the version,
+// so change the default template slightly.
+const LONG_ABOUT_TEMPLATE: &'static str =
+"{bin} {version}
+{about}
+
+USAGE:
+    {usage}
+
+{before-help}
+
+{all-args}
+
+{after-help}";
+
 fn main() {
     let app = App::new("cargo-fuzz")
         .version(option_env!("CARGO_PKG_VERSION").unwrap_or("0.0.0"))
@@ -59,13 +75,11 @@ fn main() {
                  .default_value("fuzz_target_1")
                  .help("Name of the first fuzz target to create")))
         .subcommand(fuzz_subcommand("run")
-            .about(
-"
-
-Run the fuzz target on a given target. Example usage:
-  cargo fuzz run fuzz_target_1
-The fuzz target name is the same as the name of the fuzz target script \
-in fuzz/fuzz_targets/, i.e. the name picked when running `cargo fuzz add`
+            .template(LONG_ABOUT_TEMPLATE)
+            .about("Run a fuzz target")
+            .before_help(
+"The fuzz target name is the same as the name of the fuzz target script \
+in fuzz/fuzz_targets/, i.e. the name picked when running `cargo fuzz add`.
 
 This will run the script inside the fuzz target with varying inputs \
 until it finds a crash, at which point it will save the crash input \
@@ -90,7 +104,7 @@ this will run indefinitely.")
                  .last(true)
                  .help("Additional libFuzzer arguments passed to the binary"))
             .after_help(
-"A full list of libFuzzer options can be found at http://llvm.org/docs/LibFuzzer.html#options \
+"A full list of libFuzzer options can be found at http://llvm.org/docs/LibFuzzer.html#options
 You can also get this by running `cargo fuzz run fuzz_target -- -help=1`
 
 Some useful options (to be used as `cargo fuzz run fuzz_target -- <options>`) include:
