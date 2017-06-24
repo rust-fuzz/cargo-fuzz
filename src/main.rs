@@ -47,9 +47,14 @@ fn main() {
         .setting(AppSettings::GlobalVersion)
         // cargo passes in the subcommand name to the invoked executable. Use a hidden, optional
         // positional argument to deal with it?
-        .arg(Arg::with_name("dummy").possible_value("fuzz").required(false).hidden(true))
+        .arg(Arg::with_name("dummy")
+             .possible_value("fuzz")
+             .required(false)
+             .hidden(true))
         .subcommand(SubCommand::with_name("init").about("Initialize the fuzz folder")
-            .arg(Arg::with_name("target").long("target").short("t").required(false)
+            .arg(Arg::with_name("target")
+                 .long("target").short("t")
+                 .required(false)
                  .default_value("fuzz_target_1")
                  .help("name of the first fuzz target to create")))
         .subcommand(fuzz_subcommand("run")
@@ -66,9 +71,11 @@ until it finds a crash, at which point it will save the crash input \
 to the artifact directory, print some output, and exit. Unless you \
 configure it otherwise (see libFuzzer options below), \
 this will run indefinitely.")
-            .arg(Arg::with_name("CORPUS").multiple(true)
+            .arg(Arg::with_name("CORPUS")
+                 .multiple(true)
                  .help("custom corpus directory or artifact files"))
-            .arg(Arg::with_name("JOBS").long("jobs").short("j")
+            .arg(Arg::with_name("JOBS")
+                 .long("jobs").short("j")
                  .takes_value(true)
                  .default_value("1")
                  .help("number of concurrent jobs to run")
@@ -77,7 +84,9 @@ this will run indefinitely.")
                      Err(_) => "must be a valid integer representing a sane number of jobs",
                      _ => return Ok(()),
                  }))))
-            .arg(Arg::with_name("ARGS").multiple(true).last(true)
+            .arg(Arg::with_name("ARGS")
+                 .multiple(true)
+                 .last(true)
                  .help("additional libFuzzer arguments passed to the binary"))
             .after_help(
 "A full list of libFuzzer options can be found at http://llvm.org/docs/LibFuzzer.html#options \
@@ -102,11 +111,11 @@ Some useful options (to be used as `cargo fuzz run fuzz_target -- <options>`) in
                   .help("number of attempts to minimize we should make")
                   .takes_value(true)
                   .default_value("255")
-                 .validator(|v| Err(From::from(match v.parse::<u32>() {
-                     Ok(0) => "0 jobs?",
-                     Err(_) => "must be a valid integer representing a sane number of jobs",
-                     _ => return Ok(()),
-                 }))))
+                  .validator(|v| Err(From::from(match v.parse::<u32>() {
+                      Ok(0) => "0 jobs?",
+                      Err(_) => "must be a valid integer representing a sane number of jobs",
+                      _ => return Ok(()),
+                  }))))
              .arg(Arg::with_name("CRASH")
                   .help("crashing test case to minimize"))
         )
@@ -138,17 +147,20 @@ Some useful options (to be used as `cargo fuzz run fuzz_target -- <options>`) in
 
 fn fuzz_subcommand(name: &str) -> App {
     SubCommand::with_name(name)
-        .arg(Arg::with_name("release").long("release").short("O")
+        .arg(Arg::with_name("release")
+             .long("release").short("O")
              .help("Build artifacts in release mode, with optimizations"))
         .arg(Arg::with_name("debug_assertions")
              .long("debug-assertions").short("a")
              .help("Build artifacts with debug assertions enabled (default if not -O)"))
-        .arg(Arg::with_name("sanitizer").long("sanitizer").short("s")
+        .arg(Arg::with_name("sanitizer")
+             .long("sanitizer").short("s")
              .takes_value(true)
              .possible_values(&["address", "leak", "memory", "thread"])
              .default_value("address")
              .help("Use different sanitizer"))
-        .arg(Arg::with_name("TRIPLE").long("target")
+        .arg(Arg::with_name("TRIPLE")
+             .long("target")
              .default_value(utils::default_target())
              .help("target triple of the fuzz target"))
         .arg(Arg::with_name("TARGET").required(true)
