@@ -307,7 +307,8 @@ impl FuzzProject {
         }
 
         let mut rustflags: String = format!(
-            "-Cpasses=sancov \
+            "--cfg fuzzing \
+             -Cpasses=sancov \
              -Cllvm-args=-sanitizer-coverage-level=3 \
              -Zsanitizer={sanitizer} \
              -Cpanic=abort",
