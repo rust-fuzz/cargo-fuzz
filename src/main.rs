@@ -311,6 +311,7 @@ impl FuzzProject {
              -Cpasses=sancov \
              -Cllvm-args=-sanitizer-coverage-level=3 \
              -Zsanitizer={sanitizer} \
+             -Clink-args=-Wl,-Ttext-segment=0x200000000000 \
              -Cpanic=abort",
             sanitizer = sanitizer,
         );
