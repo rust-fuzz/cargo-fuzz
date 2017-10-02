@@ -1,6 +1,6 @@
 [package]
 name = "cargo-fuzz"
-version = "0.4.3"
+version = "0.5.0"
 authors = ["The rust-fuzz Project Developers"]
 license = "MIT OR Apache-2.0"
 description = "Simple wrapper around libFuzzer"
