@@ -8,7 +8,7 @@ repository = "https://github.com/rust-fuzz/cargo-fuzz/"
 
 [dependencies]
 clap            = "2.24"
-error-chain     = "0.10"
+error-chain     = "0.11"
 futures         = "0.1"
 tempdir         = "0.3"
 term            = "0.4"
