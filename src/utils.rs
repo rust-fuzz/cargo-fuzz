@@ -1,4 +1,3 @@
-use std::io::Write;
 use term;
 
 #[allow(dead_code)]
@@ -20,17 +19,17 @@ fn red(s: &str) {
         let _ = t.attr(term::Attr::Bold);
         let _ = t.fg(term::color::RED);
     });
-    let _ = write!(::std::io::stderr(), "{}", s);
+    eprint!("{}", s);
     let _ = term_stderr.map(|mut t| t.reset());
 }
 
 
 pub fn report_error(e: &super::Error) {
     red("error:");
-    let _ = writeln!(::std::io::stderr(), " {}", e);
+    eprint!(" {}", e);
     for e in e.iter().skip(1) {
         red("  caused by:");
-        let _ = writeln!(::std::io::stderr(), " {}", e);
+        eprint!(" {}", e);
     }
 }
 
