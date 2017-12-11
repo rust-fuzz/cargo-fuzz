@@ -133,6 +133,7 @@ Some useful options (to be used as `cargo fuzz run fuzz_target -- <options>`) in
                       _ => return Ok(()),
                   }))))
              .arg(Arg::with_name("CRASH")
+                  .required(true)
                   .help("Crashing test case to minimize"))
         )
         .subcommand(SubCommand::with_name("add").about("Add a new fuzz target")
