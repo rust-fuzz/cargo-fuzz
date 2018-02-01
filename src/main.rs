@@ -311,7 +311,7 @@ impl FuzzProject {
             "--cfg fuzzing \
              -Cpasses=sancov \
              -Cllvm-args=-sanitizer-coverage-level=4 \
-             -Cllvm-args=-sanitizer-coverage-trace-pc-guard \
+             {pc_guard} \
              -Cllvm-args=-sanitizer-coverage-trace-compares \
              -Cllvm-args=-sanitizer-coverage-trace-divs \
              -Cllvm-args=-sanitizer-coverage-trace-geps \
@@ -319,6 +319,9 @@ impl FuzzProject {
              -Zsanitizer={sanitizer} \
              -Cpanic=abort",
             sanitizer = sanitizer,
+            // there is a bug in rustc/llvm which makes this flags trigger a build failure on OS X
+            // see: https://github.com/rust-lang/rust/issues/45762
+            pc_guard = if cfg!(target_os = "macos") {""} else {"-Cllvm-args=-sanitizer-coverage-trace-pc-guard"}
         );
         if args.is_present("debug_assertions") {
             rustflags.push_str(" -Cdebug-assertions");
