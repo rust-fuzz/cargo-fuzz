@@ -310,7 +310,12 @@ impl FuzzProject {
         let mut rustflags: String = format!(
             "--cfg fuzzing \
              -Cpasses=sancov \
-             -Cllvm-args=-sanitizer-coverage-level=3 \
+             -Cllvm-args=-sanitizer-coverage-level=4 \
+             -Cllvm-args=-sanitizer-coverage-trace-pc-guard \
+             -Cllvm-args=-sanitizer-coverage-trace-compares \
+             -Cllvm-args=-sanitizer-coverage-trace-divs \
+             -Cllvm-args=-sanitizer-coverage-trace-geps \
+             -Cllvm-args=-sanitizer-coverage-prune-blocks=0 \
              -Zsanitizer={sanitizer} \
              -Cpanic=abort",
             sanitizer = sanitizer,
