@@ -320,7 +320,7 @@ impl FuzzProject {
              -Cpanic=abort",
             sanitizer = sanitizer,
             // there is a bug in rustc/llvm which makes this flags trigger a build failure on OS X
-            // see: https://github.com/rust-lang/rust/issues/45762
+            // see: https://github.com/rust-lang/rust/issues/22915
             pc_guard = if cfg!(target_os = "macos") {""} else {"-Cllvm-args=-sanitizer-coverage-trace-pc-guard"}
         );
         if args.is_present("debug_assertions") {
