@@ -316,8 +316,7 @@ impl FuzzProject {
              -Cllvm-args=-sanitizer-coverage-trace-divs \
              -Cllvm-args=-sanitizer-coverage-trace-geps \
              -Cllvm-args=-sanitizer-coverage-prune-blocks=0 \
-             -Zsanitizer={sanitizer} \
-             -Cpanic=abort",
+             -Zsanitizer={sanitizer}",
             sanitizer = sanitizer,
             // there is a bug in rustc/llvm which makes this flags trigger a build failure on OS X
             // see: https://github.com/rust-lang/rust/issues/45762
