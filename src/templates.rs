@@ -3,7 +3,7 @@ macro_rules! toml_template {
 format_args!(r##"
 [package]
 name = "{0}-fuzz"
-version = "0.0.1"
+version = "0.0.0"
 authors = ["Automatically generated"]
 publish = false
 
