@@ -592,6 +592,7 @@ fn find_package() -> Result<path::PathBuf> {
         match fs::File::open(&manifest_path) {
             Err(_) => {},
             Ok(mut f) => {
+                data.clear();
                 f.read_to_end(&mut data)?;
                 let value: toml::Value = toml::from_slice(&data)
                     .chain_err(||
