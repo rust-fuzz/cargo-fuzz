@@ -5,17 +5,6 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-extern crate toml;
-extern crate clap;
-extern crate tempdir;
-extern crate term;
-extern crate tokio_core;
-extern crate tokio_process;
-extern crate tokio_io;
-extern crate futures;
-#[macro_use]
-extern crate error_chain;
-
 use clap::{App, Arg, SubCommand, ArgMatches, AppSettings};
 use std::{env, fs, path, ffi, process, io};
 use std::io::Write;
@@ -29,7 +18,7 @@ use tokio_process::CommandExt;
 mod templates;
 mod utils;
 
-error_chain! {
+error_chain::error_chain! {
     foreign_links {
         Toml(toml::de::Error);
         Io(::std::io::Error);
