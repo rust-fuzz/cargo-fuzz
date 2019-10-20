@@ -397,7 +397,7 @@ impl FuzzProject {
             cmd.arg(self.corpus_for(&target)?);
         }
 
-        let jobs: u16 = args.value_of("JOBS").expect("no triple")
+        let jobs: u16 = args.value_of("JOBS").expect("no jobs")
             .parse().expect("validation");
         if jobs == 1 {
             exec_cmd(&mut cmd).chain_err(|| format!("could not execute command: {:?}", cmd))?;
