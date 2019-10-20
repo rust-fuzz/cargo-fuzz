@@ -235,7 +235,7 @@ impl FuzzProject {
             targets: Vec::new(),
         };
         let fuzz_project = project.path();
-        let root_project_name = try!(project.root_project_name());
+        let root_project_name = project.root_project_name()?;
         let target: String = args.value_of_os("target").expect("target shoud have a default value").to_os_string()
             .into_string().map_err(|_| "target must be valid unicode")?;
 
