@@ -6,6 +6,7 @@ name = "{0}-fuzz"
 version = "0.0.0"
 authors = ["Automatically generated"]
 publish = false
+edition = "2018"
 
 [package.metadata]
 cargo-fuzz = true
@@ -43,14 +44,13 @@ artifacts
 }
 
 macro_rules! target_template {
-    ($name: expr) => {
+    () => {
 format_args!(r##"#![no_main]
-#[macro_use] extern crate libfuzzer_sys;
-extern crate {};
+use libfuzzer_sys::fuzz_target;
 
 fuzz_target!(|data: &[u8]| {{
     // fuzzed code goes here
 }});
-"##, $name)
+"##)
     }
 }

@@ -275,7 +275,7 @@ impl FuzzProject {
         let target_path = self.target_path(target);
         let mut script = fs::OpenOptions::new().write(true).create_new(true).open(&target_path)
             .chain_err(|| format!("could not create target script file at {:?}", target_path))?;
-        script.write_fmt(target_template!(self.root_project_name()?.replace("-", "_")))?;
+        script.write_fmt(target_template!())?;
 
         let mut cargo = fs::OpenOptions::new().append(true)
             .open(self.manifest_path())?;
