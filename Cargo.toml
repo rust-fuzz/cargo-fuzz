@@ -5,6 +5,7 @@ authors = ["The rust-fuzz Project Developers"]
 license = "MIT OR Apache-2.0"
 description = "Simple wrapper around libFuzzer"
 repository = "https://github.com/rust-fuzz/cargo-fuzz/"
+categories = ["development-tools::testing"]
 
 [dependencies]
 clap            = "2.24"
