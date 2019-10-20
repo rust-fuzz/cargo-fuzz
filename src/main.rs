@@ -6,13 +6,9 @@
 // copied, modified, or distributed except according to those terms.
 
 use clap::{App, Arg, SubCommand, ArgMatches, AppSettings};
-use std::{env, fs, path, ffi, process, io};
+use std::{env, fs, path, ffi, process};
 use std::io::Write;
 use std::io::Read;
-
-use futures::{Future, Stream};
-use tokio_core::reactor::Core;
-use tokio_process::CommandExt;
 
 #[macro_use]
 mod templates;
@@ -391,47 +387,11 @@ impl FuzzProject {
 
         let jobs: u16 = args.value_of("JOBS").expect("no jobs")
             .parse().expect("validation");
-        if jobs == 1 {
-            exec_cmd(&mut cmd).chain_err(|| format!("could not execute command: {:?}", cmd))?;
-            Ok(())
-        } else {
-            let mut core = Core::new().unwrap();
-            cmd.stdout(process::Stdio::piped());
-            cmd.stderr(process::Stdio::piped());
-            let mut chs = (0..jobs).map(|_| {
-                cmd.spawn_async(&core.handle()).chain_err(||
-                    format!("could not execute command: {:?}", cmd)
-                )
-            }).collect::<Result<Vec<_>>>()?;
-
-            let stdouts = futures::future::join_all(chs.iter_mut().enumerate().map(|(id, ch)| {
-                let buf = io::BufReader::with_capacity(256, ch.stdout().take().unwrap());
-                tokio_io::io::lines(buf).for_each(move |l| {
-                    writeln!(::std::io::stdout(), "[{}] {}", id, l)
-                })
-            }).collect::<Vec<_>>());
-            let stderrs = futures::future::join_all(chs.iter_mut().enumerate().map(|(id, ch)| {
-                let buf = io::BufReader::with_capacity(256, ch.stderr().take().unwrap());
-                tokio_io::io::lines(buf).for_each(move |l| {
-                    writeln!(::std::io::stderr(), "[{}] {}", id, l)
-                })
-            }).collect::<Vec<_>>());
-            let exits = futures::select_all(chs).then(|v| {
-                let (r, rest) = match v {
-                    Ok((_, n, v)) => { (futures::future::ok(n), v) },
-                    Err((e, _, v)) => { (futures::future::err(e), v) },
-                };
-                for mut ch in rest {
-                    let _ = ch.kill();
-                }
-                r
-            });
-
-            let (jobnum, _, _) = core.run(exits.join3(stdouts, stderrs))
-                .chain_err(|| format!("could not run the processes: {:?}", cmd))?;
-            println!("Worker {} finished fuzzing", jobnum);
-            Ok(())
+        if jobs != 1 {
+            cmd.arg(format!("-fork={}", jobs));
         }
+        exec_cmd(&mut cmd).chain_err(|| format!("could not execute command: {:?}", cmd))?;
+        Ok(())
     }
 
     fn exec_tmin(&self, args: &ArgMatches) -> Result<()> {
