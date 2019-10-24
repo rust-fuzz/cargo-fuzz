@@ -25,10 +25,10 @@ fn red(s: &str) {
 
 pub fn report_error(e: &super::Error) {
     red("error:");
-    eprint!(" {}", e);
+    eprintln!(" {}", e);
     for e in e.iter().skip(1) {
         red("  caused by:");
-        eprint!(" {}", e);
+        eprintln!(" {}", e);
     }
 }
 
