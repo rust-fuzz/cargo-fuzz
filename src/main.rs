@@ -5,10 +5,10 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
-use clap::{App, Arg, SubCommand, ArgMatches, AppSettings};
-use std::{env, fs, path, ffi, process};
-use std::io::Write;
+use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use std::io::Read;
+use std::io::Write;
+use std::{env, ffi, fs, path, process};
 
 #[macro_use]
 mod templates;
@@ -27,8 +27,7 @@ static FUZZ_TARGETS_DIR: &'static str = "fuzz_targets";
 // clap's long_about() makes `cargo fuzz --help` unreadable,
 // and clap's before_help() injects our long about text before the version,
 // so change the default template slightly.
-const LONG_ABOUT_TEMPLATE: &'static str =
-"{bin} {version}
+const LONG_ABOUT_TEMPLATE: &'static str = "{bin} {version}
 {about}
 
 USAGE:
@@ -128,62 +127,92 @@ Some useful options (to be used as `cargo fuzz run fuzz_target -- <options>`) in
         .subcommand(SubCommand::with_name("list").about("List all fuzz targets"));
     let args = app.get_matches();
 
-    process::exit(match args.subcommand() {
-        ("init", matches) => FuzzProject::init(matches.expect("arguments present")).map(|_| ()),
-        ("add", matches) => FuzzProject::new()
-            .and_then(|p| p.add_target(matches.expect("arguments present"))),
-        ("list", _) => FuzzProject::new()
-            .and_then(|p| p.list_targets()),
-        ("run", matches) => FuzzProject::new()
-            .and_then(|p| p.exec_fuzz(matches.expect("arguments present"))),
-        ("cmin", matches) => FuzzProject::new()
-            .and_then(|p| p.exec_cmin(matches.expect("arguments present"))),
-        ("tmin", matches) => FuzzProject::new()
-            .and_then(|p| p.exec_tmin(matches.expect("arguments present"))),
-        (s, _) => panic!("unimplemented subcommand {}!", s),
-    }.map(|_| 0).unwrap_or_else(|err| {
-        utils::report_error(&err);
-        1
-    }));
+    process::exit(
+        match args.subcommand() {
+            ("init", matches) => FuzzProject::init(matches.expect("arguments present")).map(|_| ()),
+            ("add", matches) => {
+                FuzzProject::new().and_then(|p| p.add_target(matches.expect("arguments present")))
+            }
+            ("list", _) => FuzzProject::new().and_then(|p| p.list_targets()),
+            ("run", matches) => {
+                FuzzProject::new().and_then(|p| p.exec_fuzz(matches.expect("arguments present")))
+            }
+            ("cmin", matches) => {
+                FuzzProject::new().and_then(|p| p.exec_cmin(matches.expect("arguments present")))
+            }
+            ("tmin", matches) => {
+                FuzzProject::new().and_then(|p| p.exec_tmin(matches.expect("arguments present")))
+            }
+            (s, _) => panic!("unimplemented subcommand {}!", s),
+        }
+        .map(|_| 0)
+        .unwrap_or_else(|err| {
+            utils::report_error(&err);
+            1
+        }),
+    );
 }
 
 fn fuzz_subcommand(name: &str) -> App {
     SubCommand::with_name(name)
         .setting(AppSettings::DeriveDisplayOrder)
-        .arg(Arg::with_name("release")
-             .long("release").short("O")
-             .help("Build artifacts in release mode, with optimizations"))
-        .arg(Arg::with_name("debug_assertions")
-             .long("debug-assertions").short("a")
-             .help("Build artifacts with debug assertions enabled (default if not -O)"))
-        .arg(Arg::with_name("no_default_features")
-             .long("no-default-features")
-             .help("Build artifacts with default Cargo features disabled"))
-        .arg(Arg::with_name("all_features")
-             .long("all-features")
-             .help("Build artifacts with all Cargo features enabled"))
-        .arg(Arg::with_name("features")
-             .long("features")
-             .takes_value(true)
-             .help("Build artifacts with given Cargo feature enabled"))
-        .arg(Arg::with_name("sanitizer")
-             .long("sanitizer").short("s")
-             .takes_value(true)
-             .possible_values(&["address", "leak", "memory", "thread"])
-             .default_value("address")
-             .help("Use different sanitizer"))
-        .arg(Arg::with_name("TRIPLE")
-             .long("target")
-             .default_value(utils::default_target())
-             .help("Target triple of the fuzz target"))
-        .arg(Arg::with_name("TARGET").required(true)
-             .help("Name of the fuzz target"))
+        .arg(
+            Arg::with_name("release")
+                .long("release")
+                .short("O")
+                .help("Build artifacts in release mode, with optimizations"),
+        )
+        .arg(
+            Arg::with_name("debug_assertions")
+                .long("debug-assertions")
+                .short("a")
+                .help("Build artifacts with debug assertions enabled (default if not -O)"),
+        )
+        .arg(
+            Arg::with_name("no_default_features")
+                .long("no-default-features")
+                .help("Build artifacts with default Cargo features disabled"),
+        )
+        .arg(
+            Arg::with_name("all_features")
+                .long("all-features")
+                .help("Build artifacts with all Cargo features enabled"),
+        )
+        .arg(
+            Arg::with_name("features")
+                .long("features")
+                .takes_value(true)
+                .help("Build artifacts with given Cargo feature enabled"),
+        )
+        .arg(
+            Arg::with_name("sanitizer")
+                .long("sanitizer")
+                .short("s")
+                .takes_value(true)
+                .possible_values(&["address", "leak", "memory", "thread"])
+                .default_value("address")
+                .help("Use different sanitizer"),
+        )
+        .arg(
+            Arg::with_name("TRIPLE")
+                .long("target")
+                .default_value(utils::default_target())
+                .help("Target triple of the fuzz target"),
+        )
+        .arg(
+            Arg::with_name("TARGET")
+                .required(true)
+                .help("Name of the fuzz target"),
+        )
 }
 
 fn get_target(args: &ArgMatches) -> Result<String> {
-    Ok(args.value_of_os("TARGET").expect("TARGET is required")
-       .to_os_string().into_string()
-       .map_err(|_| "TARGET must be valid unicode")?)
+    Ok(args
+        .value_of_os("TARGET")
+        .expect("TARGET is required")
+        .to_os_string()
+        .into_string()
+        .map_err(|_| "TARGET must be valid unicode")?)
 }
 
 struct FuzzProject {
@@ -198,14 +227,17 @@ impl FuzzProject {
     fn new() -> Result<Self> {
         let mut project = FuzzProject {
             root_project: find_package()?,
-            targets: Vec::new()
+            targets: Vec::new(),
         };
         let manifest = project.manifest()?;
         if !is_fuzz_manifest(&manifest) {
-            return Err(format!("manifest `{:?}` does not look like a cargo-fuzz manifest. \
-                                Add following lines to override:\n\
-                                [package.metadata]\ncargo-fuzz = true",
-                                project.manifest_path()).into());
+            return Err(format!(
+                "manifest `{:?}` does not look like a cargo-fuzz manifest. \
+                 Add following lines to override:\n\
+                 [package.metadata]\ncargo-fuzz = true",
+                project.manifest_path()
+            )
+            .into());
         }
         project.targets = collect_targets(&manifest);
         Ok(project)
@@ -221,8 +253,12 @@ impl FuzzProject {
         };
         let fuzz_project = project.path();
         let root_project_name = project.root_project_name()?;
-        let target: String = args.value_of_os("target").expect("target shoud have a default value").to_os_string()
-            .into_string().map_err(|_| "target must be valid unicode")?;
+        let target: String = args
+            .value_of_os("target")
+            .expect("target shoud have a default value")
+            .to_os_string()
+            .into_string()
+            .map_err(|_| "target must be valid unicode")?;
 
         // TODO: check if the project is already initialized
         fs::create_dir(&fuzz_project)?;
@@ -234,8 +270,9 @@ impl FuzzProject {
         let mut ignore = fs::File::create(fuzz_project.join(".gitignore"))?;
         ignore.write_fmt(gitignore_template!())?;
 
-        project.create_target_template(&target)
-               .chain_err(|| format!("could not create template file for target {:?}", target))?;
+        project
+            .create_target_template(&target)
+            .chain_err(|| format!("could not create template file for target {:?}", target))?;
         Ok(project)
     }
 
@@ -258,11 +295,15 @@ impl FuzzProject {
     /// Add a new fuzz target script with a given name
     fn create_target_template(&self, target: &str) -> Result<()> {
         let target_path = self.target_path(target);
-        let mut script = fs::OpenOptions::new().write(true).create_new(true).open(&target_path)
+        let mut script = fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&target_path)
             .chain_err(|| format!("could not create target script file at {:?}", target_path))?;
         script.write_fmt(target_template!())?;
 
-        let mut cargo = fs::OpenOptions::new().append(true)
+        let mut cargo = fs::OpenOptions::new()
+            .append(true)
             .open(self.manifest_path())?;
         Ok(cargo.write_fmt(toml_bin_template!(target))?)
     }
@@ -274,11 +315,14 @@ impl FuzzProject {
 
         let mut cmd = process::Command::new("cargo");
         cmd.arg(name)
-            .arg("--manifest-path").arg(self.manifest_path())
+            .arg("--manifest-path")
+            .arg(self.manifest_path())
             .arg("--verbose")
-            .arg("--bin").arg(target)
+            .arg("--bin")
+            .arg(target)
             // --target=<TARGET> won't pass rustflags to build scripts
-            .arg("--target").arg(target_triple);
+            .arg("--target")
+            .arg(target_triple);
         if args.is_present("release") {
             cmd.arg("--release");
         }
@@ -304,7 +348,11 @@ impl FuzzProject {
              -Zsanitizer={sanitizer}",
             sanitizer = sanitizer,
         );
-        if target_triple.to_str().expect("target triple not utf-8").contains("-linux-") {
+        if target_triple
+            .to_str()
+            .expect("target triple not utf-8")
+            .contains("-linux-")
+        {
             rustflags.push_str(" -Cllvm-args=-sanitizer-coverage-stack-depth");
         }
         if args.is_present("debug_assertions") {
@@ -317,7 +365,6 @@ impl FuzzProject {
             rustflags.push_str(&other_flags);
         }
         cmd.env("RUSTFLAGS", rustflags);
-
 
         // For asan and tsan we have default options. Merge them to the given
         // options, so users can still provide their own options to e.g. disable
@@ -353,8 +400,7 @@ impl FuzzProject {
         let mut artifact_arg = ffi::OsString::from("-artifact_prefix=");
         artifact_arg.push(self.artifacts_for(&target)?);
 
-        cmd.arg("--")
-           .arg(artifact_arg);
+        cmd.arg("--").arg(artifact_arg);
 
         Ok(cmd)
     }
@@ -364,7 +410,8 @@ impl FuzzProject {
         let target = get_target(args)?;
 
         let mut cmd = self.cargo("build", args)?;
-        let status = cmd.status()
+        let status = cmd
+            .status()
             .chain_err(|| format!("could not execute: {:?}", cmd))?;
         if !status.success() {
             return Err(format!("could not build fuzz script: {:?}", cmd).into());
@@ -385,8 +432,11 @@ impl FuzzProject {
             cmd.arg(self.corpus_for(&target)?);
         }
 
-        let jobs: u16 = args.value_of("JOBS").expect("no jobs")
-            .parse().expect("validation");
+        let jobs: u16 = args
+            .value_of("JOBS")
+            .expect("no jobs")
+            .parse()
+            .expect("validation");
         if jobs != 1 {
             cmd.arg(format!("-fork={}", jobs));
         }
@@ -397,14 +447,16 @@ impl FuzzProject {
     fn exec_tmin(&self, args: &ArgMatches) -> Result<()> {
         let mut cmd = self.cmd(args)?;
 
-        let runs: u32 = args.value_of("runs").unwrap()
-            .parse().expect("runs should be int");
+        let runs: u32 = args
+            .value_of("runs")
+            .unwrap()
+            .parse()
+            .expect("runs should be int");
 
         cmd.arg("-minimize_crash=1")
-           .arg(format!("-runs={}", runs))
-           .arg(args.value_of("CRASH").unwrap());
-        exec_cmd(&mut cmd)
-            .chain_err(|| format!("could not execute command: {:?}", cmd))?;
+            .arg(format!("-runs={}", runs))
+            .arg(args.value_of("CRASH").unwrap());
+        exec_cmd(&mut cmd).chain_err(|| format!("could not execute command: {:?}", cmd))?;
         Ok(())
     }
 
@@ -415,7 +467,8 @@ impl FuzzProject {
             corpus.to_owned()
         } else {
             self.corpus_for(&get_target(args)?)?
-                .to_str().expect("CORPUS should be valid unicode")
+                .to_str()
+                .expect("CORPUS should be valid unicode")
                 .to_owned()
         };
 
@@ -428,7 +481,8 @@ impl FuzzProject {
             .arg(&corpus);
 
         // Spawn cmd in child process instead of exec-ing it
-        let status = cmd.status()
+        let status = cmd
+            .status()
             .chain_err(|| format!("could not execute command: {:?}", cmd))?;
         if status.success() {
             // move corpus directory into tmp to auto delete it
@@ -471,9 +525,11 @@ impl FuzzProject {
     fn target_path(&self, target: &str) -> path::PathBuf {
         let mut root = self.path();
         if root.join(FUZZ_TARGETS_DIR_OLD).exists() {
-            println!("warning: The `fuzz/fuzzers/` directory has renamed to `fuzz/fuzz_targets/`. \
-                      Please rename the directory as such. This will become a hard error in the \
-                      future.");
+            println!(
+                "warning: The `fuzz/fuzzers/` directory has renamed to `fuzz/fuzz_targets/`. \
+                 Please rename the directory as such. This will become a hard error in the \
+                 future."
+            );
             root.push(FUZZ_TARGETS_DIR_OLD);
         } else {
             root.push(FUZZ_TARGETS_DIR);
@@ -485,14 +541,12 @@ impl FuzzProject {
 
     fn manifest(&self) -> Result<toml::Value> {
         let filename = self.manifest_path();
-        let mut file = fs::File::open(&filename).chain_err(||
-            format!("could not read the manifest file: {:?}", filename)
-        )?;
+        let mut file = fs::File::open(&filename)
+            .chain_err(|| format!("could not read the manifest file: {:?}", filename))?;
         let mut data = Vec::new();
         file.read_to_end(&mut data)?;
-        toml::from_slice(&data).chain_err(||
-            format!("could not decode the manifest file at {:?}", filename)
-        )
+        toml::from_slice(&data)
+            .chain_err(|| format!("could not decode the manifest file at {:?}", filename))
     }
 
     fn root_project_name(&self) -> Result<String> {
@@ -501,10 +555,12 @@ impl FuzzProject {
         let mut data = Vec::new();
         file.read_to_end(&mut data)?;
         let value: toml::Value = toml::from_slice(&data)?;
-        let name = value.as_table().and_then(|v| v.get("package"))
-                                   .and_then(toml::Value::as_table)
-                                   .and_then(|v| v.get("name"))
-                                   .and_then(toml::Value::as_str);
+        let name = value
+            .as_table()
+            .and_then(|v| v.get("package"))
+            .and_then(toml::Value::as_table)
+            .and_then(|v| v.get("name"))
+            .and_then(toml::Value::as_str);
         if let Some(name) = name {
             Ok(String::from(name))
         } else {
@@ -514,24 +570,33 @@ impl FuzzProject {
 }
 
 fn collect_targets(value: &toml::Value) -> Vec<String> {
-    let bins = value.as_table().and_then(|v| v.get("bin"))
-                               .and_then(toml::Value::as_array);
+    let bins = value
+        .as_table()
+        .and_then(|v| v.get("bin"))
+        .and_then(toml::Value::as_array);
     if let Some(bins) = bins {
-        bins.iter().map(|bin|
-            bin.as_table().and_then(|v| v.get("name")).and_then(toml::Value::as_str)
-        ).filter_map(|name| name.map(String::from)).collect()
+        bins.iter()
+            .map(|bin| {
+                bin.as_table()
+                    .and_then(|v| v.get("name"))
+                    .and_then(toml::Value::as_str)
+            })
+            .filter_map(|name| name.map(String::from))
+            .collect()
     } else {
         Vec::new()
     }
 }
 
 fn is_fuzz_manifest(value: &toml::Value) -> bool {
-    let is_fuzz = value.as_table().and_then(|v| v.get("package"))
-                                  .and_then(toml::Value::as_table)
-                                  .and_then(|v| v.get("metadata"))
-                                  .and_then(toml::Value::as_table)
-                                  .and_then(|v| v.get("cargo-fuzz"))
-                                  .and_then(toml::Value::as_bool);
+    let is_fuzz = value
+        .as_table()
+        .and_then(|v| v.get("package"))
+        .and_then(toml::Value::as_table)
+        .and_then(|v| v.get("metadata"))
+        .and_then(toml::Value::as_table)
+        .and_then(|v| v.get("cargo-fuzz"))
+        .and_then(toml::Value::as_bool);
     is_fuzz == Some(true)
 }
 
@@ -542,21 +607,22 @@ fn find_package() -> Result<path::PathBuf> {
     loop {
         let manifest_path = dir.join("Cargo.toml");
         match fs::File::open(&manifest_path) {
-            Err(_) => {},
+            Err(_) => {}
             Ok(mut f) => {
                 data.clear();
                 f.read_to_end(&mut data)?;
-                let value: toml::Value = toml::from_slice(&data)
-                    .chain_err(||
-                        format!("could not decode the manifest file at {:?}", manifest_path)
-                    )?;
+                let value: toml::Value = toml::from_slice(&data).chain_err(|| {
+                    format!("could not decode the manifest file at {:?}", manifest_path)
+                })?;
                 if !is_fuzz_manifest(&value) {
                     // Not a cargo-fuzz project => must be a proper cargo project :)
                     return Ok(dir);
                 }
             }
         }
-        if !dir.pop() { break; }
+        if !dir.pop() {
+            break;
+        }
     }
     Err("could not find a cargo project".into())
 }
