@@ -1,6 +1,6 @@
 [package]
 name = "cargo-fuzz"
-version = "0.5.4"
+version = "0.5.5"
 authors = ["The rust-fuzz Project Developers"]
 license = "MIT OR Apache-2.0"
 description = "Simple wrapper around libFuzzer"
@@ -14,7 +14,6 @@ error-chain     = "0.12"
 tempdir         = "0.3"
 term            = "0.4"
 toml            = "0.4"
-
 
 [workspace]
 members = ["."]
