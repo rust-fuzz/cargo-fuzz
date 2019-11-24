@@ -52,6 +52,7 @@ fn main() {
              .possible_value("fuzz")
              .required(false)
              .hidden(true))
+        .arg(Arg::with_name("no-color").long("no-color"))
         .subcommand(SubCommand::with_name("init")
             .about("Initialize the fuzz folder")
             .arg(Arg::with_name("target")
@@ -126,28 +127,26 @@ Some useful options (to be used as `cargo fuzz run fuzz_target -- <options>`) in
         )
         .subcommand(SubCommand::with_name("list").about("List all fuzz targets"));
     let args = app.get_matches();
+    let term =
+        utils::TermOutputWrapper::new(!args.is_present("no-color"));
 
     process::exit(
         match args.subcommand() {
-            ("init", matches) => FuzzProject::init(matches.expect("arguments present")).map(|_| ()),
-            ("add", matches) => {
-                FuzzProject::new().and_then(|p| p.add_target(matches.expect("arguments present")))
-            }
-            ("list", _) => FuzzProject::new().and_then(|p| p.list_targets()),
-            ("run", matches) => {
-                FuzzProject::new().and_then(|p| p.exec_fuzz(matches.expect("arguments present")))
-            }
-            ("cmin", matches) => {
-                FuzzProject::new().and_then(|p| p.exec_cmin(matches.expect("arguments present")))
-            }
-            ("tmin", matches) => {
-                FuzzProject::new().and_then(|p| p.exec_tmin(matches.expect("arguments present")))
-            }
+            ("init", matches) => FuzzProject::init(term, matches.expect("arguments present")).map(|_| ()),
+            ("add", matches) => FuzzProject::new(term)
+                .and_then(|p| p.add_target(matches.expect("arguments present"))),
+            ("list", _) => FuzzProject::new(term).and_then(|p| p.list_targets()),
+            ("run", matches) => FuzzProject::new(term)
+                .and_then(|p| p.exec_fuzz(matches.expect("arguments present"))),
+            ("cmin", matches) => FuzzProject::new(term)
+                .and_then(|p| p.exec_cmin(matches.expect("arguments present"))),
+            ("tmin", matches) => FuzzProject::new(term)
+                .and_then(|p| p.exec_tmin(matches.expect("arguments present"))),
             (s, _) => panic!("unimplemented subcommand {}!", s),
         }
         .map(|_| 0)
         .unwrap_or_else(|err| {
-            utils::report_error(&err);
+            term.report_error(&err);
             1
         }),
     );
@@ -221,13 +220,15 @@ struct FuzzProject {
     /// Not the project with fuzz targets, but the project being fuzzed
     root_project: path::PathBuf,
     targets: Vec<String>,
+    term: utils::TermOutputWrapper,
 }
 
 impl FuzzProject {
-    fn new() -> Result<Self> {
+    fn new(term: utils::TermOutputWrapper) -> Result<Self> {
         let mut project = FuzzProject {
             root_project: find_package()?,
             targets: Vec::new(),
+            term,
         };
         let manifest = project.manifest()?;
         if !is_fuzz_manifest(&manifest) {
@@ -246,10 +247,11 @@ impl FuzzProject {
     /// Create the fuzz project structure
     ///
     /// This will not clone libfuzzer-sys
-    fn init(args: &ArgMatches) -> Result<Self> {
+    fn init(term: utils::TermOutputWrapper, args: &ArgMatches) -> Result<Self> {
         let project = FuzzProject {
             root_project: find_package()?,
             targets: Vec::new(),
+            term
         };
         let fuzz_project = project.path();
         let root_project_name = project.root_project_name()?;
@@ -278,7 +280,7 @@ impl FuzzProject {
 
     fn list_targets(&self) -> Result<()> {
         for bin in &self.targets {
-            utils::print_message(bin, term::color::GREEN);
+            self.term.print_message(bin, term::color::GREEN);
         }
         Ok(())
     }
