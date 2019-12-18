@@ -15,6 +15,7 @@ use structopt::StructOpt;
 
 #[macro_use]
 mod templates;
+mod options;
 mod utils;
 
 static FUZZ_TARGETS_DIR_OLD: &'static str = "fuzzers";
@@ -93,13 +94,13 @@ trait RunCommand {
 )]
 enum Command {
     /// Initialize the fuzz directory
-    Init(Init),
+    Init(options::Init),
 
     /// Add a new fuzz target
-    Add(Add),
+    Add(options::Add),
 
     /// List all the existing fuzz targets
-    List(List),
+    List(options::List),
 
     #[structopt(
         template(LONG_ABOUT_TEMPLATE),
@@ -107,13 +108,13 @@ enum Command {
         after_help(RUN_AFTER_HELP)
     )]
     /// Run a fuzz target
-    Run(Run),
+    Run(options::Run),
 
     /// Minify a corpus
-    Cmin(Cmin),
+    Cmin(options::Cmin),
 
     /// Minify a test case
-    Tmin(Tmin),
+    Tmin(options::Tmin),
 }
 
 impl RunCommand for Command {
@@ -126,49 +127,6 @@ impl RunCommand for Command {
             Command::Cmin(x) => x.run_command(),
             Command::Tmin(x) => x.run_command(),
         }
-    }
-}
-
-#[derive(Clone, Debug, StructOpt)]
-struct Init {
-    #[structopt(
-        short = "t",
-        long = "target",
-        required = false,
-        default_value = "fuzz_target_1"
-    )]
-    /// Name of the first fuzz target to create
-    target: String,
-}
-
-impl RunCommand for Init {
-    fn run_command(&mut self) -> Result<()> {
-        FuzzProject::init(self)?;
-        Ok(())
-    }
-}
-
-#[derive(Clone, Debug, StructOpt)]
-struct Add {
-    #[structopt(required = true)]
-    /// Name of the new fuzz target
-    target: String,
-}
-
-impl RunCommand for Add {
-    fn run_command(&mut self) -> Result<()> {
-        let project = FuzzProject::new()?;
-        project.add_target(self)
-    }
-}
-
-#[derive(Clone, Debug, StructOpt)]
-struct List {}
-
-impl RunCommand for List {
-    fn run_command(&mut self) -> Result<()> {
-        let project = FuzzProject::new()?;
-        project.list_targets()
     }
 }
 
@@ -210,7 +168,7 @@ impl FromStr for Sanitizer {
 }
 
 #[derive(Clone, Debug, StructOpt)]
-struct BuildOptions {
+pub struct BuildOptions {
     #[structopt(short = "O", long = "release")]
     /// Build artifacts in release mode, with optimizations
     release: bool,
@@ -257,86 +215,6 @@ struct BuildOptions {
     target: String,
 }
 
-#[derive(Clone, Debug, StructOpt)]
-struct Run {
-    #[structopt(flatten)]
-    build: BuildOptions,
-
-    /// Custom corpus directories or artifact files.
-    corpus: Vec<String>,
-
-    #[structopt(
-        short = "j",
-        long = "jobs",
-        default_value = "1",
-        validator(|v| Err(From::from(match v.parse::<u16>() {
-            Ok(0) => "0 jobs?",
-            Err(_) => "must be a valid integer representing a sane number of jobs",
-            _ => return Ok(()),
-        }))),
-    )]
-    /// Number of concurrent jobs to run
-    jobs: u32,
-
-    #[structopt(last(true))]
-    /// Additional libFuzzer arguments passed through to the binary
-    args: Vec<String>,
-}
-
-impl RunCommand for Run {
-    fn run_command(&mut self) -> Result<()> {
-        let project = FuzzProject::new()?;
-        project.exec_fuzz(self)
-    }
-}
-
-#[derive(Clone, Debug, StructOpt)]
-struct Cmin {
-    #[structopt(flatten)]
-    build: BuildOptions,
-
-    #[structopt(parse(from_os_str))]
-    /// The corpus directory to minify into
-    corpus: Option<PathBuf>,
-}
-
-impl RunCommand for Cmin {
-    fn run_command(&mut self) -> Result<()> {
-        let project = FuzzProject::new()?;
-        project.exec_cmin(self)
-    }
-}
-
-#[derive(Clone, Debug, StructOpt)]
-struct Tmin {
-    #[structopt(flatten)]
-    build: BuildOptions,
-
-    #[structopt(
-        short = "r",
-        long = "runs",
-        default_value = "255",
-        validator(|v| Err(From::from(match v.parse::<u32>() {
-            Ok(0) => "0 jobs?",
-            Err(_) => "must be a valid integer representing a sane number of jobs",
-            _ => return Ok(()),
-        }))),
-    )]
-    /// Number of minimization attempts to perform
-    runs: u32,
-
-    #[structopt(parse(from_os_str))]
-    /// Path to the failing test case to be minimized
-    test_case: PathBuf,
-}
-
-impl RunCommand for Tmin {
-    fn run_command(&mut self) -> Result<()> {
-        let project = FuzzProject::new()?;
-        project.exec_tmin(self)
-    }
-}
-
 fn main() -> Result<()> {
     Command::from_args().run_command()
 }
@@ -372,7 +250,7 @@ impl FuzzProject {
     /// Create the fuzz project structure
     ///
     /// This will not clone libfuzzer-sys
-    fn init(init: &Init) -> Result<Self> {
+    fn init(init: &options::Init) -> Result<Self> {
         let project = FuzzProject {
             root_project: find_package()?,
             targets: Vec::new(),
@@ -421,7 +299,7 @@ impl FuzzProject {
         Ok(())
     }
 
-    fn add_target(&self, add: &Add) -> Result<()> {
+    fn add_target(&self, add: &options::Add) -> Result<()> {
         // Create corpus and artifact directories for the newly added target
         self.corpus_for(&add.target)?;
         self.artifacts_for(&add.target)?;
@@ -534,7 +412,7 @@ impl FuzzProject {
     }
 
     /// Fuzz a given fuzz target
-    fn exec_fuzz<'a>(&self, run: &Run) -> Result<()> {
+    fn exec_fuzz<'a>(&self, run: &options::Run) -> Result<()> {
         let mut cmd = self.cargo("build", &run.build)?;
         let status = cmd
             .status()
@@ -563,7 +441,7 @@ impl FuzzProject {
         Ok(())
     }
 
-    fn exec_tmin(&self, tmin: &Tmin) -> Result<()> {
+    fn exec_tmin(&self, tmin: &options::Tmin) -> Result<()> {
         let mut cmd = self.cmd(&tmin.build)?;
 
         cmd.arg("-minimize_crash=1")
@@ -573,7 +451,7 @@ impl FuzzProject {
         Ok(())
     }
 
-    fn exec_cmin(&self, cmin: &Cmin) -> Result<()> {
+    fn exec_cmin(&self, cmin: &options::Cmin) -> Result<()> {
         let mut cmd = self.cmd(&cmin.build)?;
 
         let corpus = if let Some(corpus) = cmin.corpus.clone() {
