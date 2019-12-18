@@ -229,10 +229,11 @@ impl FuzzProject {
         let manifest = project.manifest()?;
         if !is_fuzz_manifest(&manifest) {
             bail!(
-                "manifest `{:?}` does not look like a cargo-fuzz manifest. \
+                "manifest `{}` does not look like a cargo-fuzz manifest. \
                  Add following lines to override:\n\
-                 [package.metadata]\ncargo-fuzz = true",
-                project.manifest_path()
+                 [package.metadata]\n\
+                 cargo-fuzz = true",
+                project.manifest_path().display()
             );
         }
         project.targets = collect_targets(&manifest);
@@ -539,11 +540,15 @@ impl FuzzProject {
     fn manifest(&self) -> Result<toml::Value> {
         let filename = self.manifest_path();
         let mut file = fs::File::open(&filename)
-            .with_context(|| format!("could not read the manifest file: {:?}", filename))?;
+            .with_context(|| format!("could not read the manifest file: {}", filename.display()))?;
         let mut data = Vec::new();
         file.read_to_end(&mut data)?;
-        toml::from_slice(&data)
-            .with_context(|| format!("could not decode the manifest file at {:?}", filename))
+        toml::from_slice(&data).with_context(|| {
+            format!(
+                "could not decode the manifest file at {}",
+                filename.display()
+            )
+        })
     }
 
     fn root_project_name(&self) -> Result<String> {
@@ -561,7 +566,7 @@ impl FuzzProject {
         if let Some(name) = name {
             Ok(String::from(name))
         } else {
-            bail!("{:?} (package.name) is malformed", filename);
+            bail!("{} (package.name) is malformed", filename.display());
         }
     }
 }
@@ -609,7 +614,10 @@ fn find_package() -> Result<path::PathBuf> {
                 data.clear();
                 f.read_to_end(&mut data)?;
                 let value: toml::Value = toml::from_slice(&data).with_context(|| {
-                    format!("could not decode the manifest file at {:?}", manifest_path)
+                    format!(
+                        "could not decode the manifest file at {}",
+                        manifest_path.display()
+                    )
                 })?;
                 if !is_fuzz_manifest(&value) {
                     // Not a cargo-fuzz project => must be a proper cargo project :)
