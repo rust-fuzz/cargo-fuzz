@@ -11,7 +11,6 @@ edition = "2018"
 [dependencies]
 clap            = "2.33.0"
 tempdir         = "0.3.7"
-term            = "0.6.1"
 toml            = "0.5.5"
 anyhow = "1.0.25"
 
