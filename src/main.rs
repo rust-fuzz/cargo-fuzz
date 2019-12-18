@@ -5,6 +5,7 @@
 // http://opensource.org/licenses/MIT>, at your option. This file may not be
 // copied, modified, or distributed except according to those terms.
 
+use anyhow::{anyhow, bail, Context, Result};
 use clap::{App, AppSettings, Arg, ArgMatches, SubCommand};
 use std::io::Read;
 use std::io::Write;
@@ -13,13 +14,6 @@ use std::{env, ffi, fs, path, process};
 #[macro_use]
 mod templates;
 mod utils;
-
-error_chain::error_chain! {
-    foreign_links {
-        Toml(toml::de::Error);
-        Io(::std::io::Error);
-    }
-}
 
 static FUZZ_TARGETS_DIR_OLD: &'static str = "fuzzers";
 static FUZZ_TARGETS_DIR: &'static str = "fuzz_targets";
@@ -127,12 +121,13 @@ Some useful options (to be used as `cargo fuzz run fuzz_target -- <options>`) in
         )
         .subcommand(SubCommand::with_name("list").about("List all fuzz targets"));
     let args = app.get_matches();
-    let term =
-        utils::TermOutputWrapper::new(!args.is_present("no-color"));
+    let term = utils::TermOutputWrapper::new(!args.is_present("no-color"));
 
     process::exit(
         match args.subcommand() {
-            ("init", matches) => FuzzProject::init(term, matches.expect("arguments present")).map(|_| ()),
+            ("init", matches) => {
+                FuzzProject::init(term, matches.expect("arguments present")).map(|_| ())
+            }
             ("add", matches) => FuzzProject::new(term)
                 .and_then(|p| p.add_target(matches.expect("arguments present"))),
             ("list", _) => FuzzProject::new(term).and_then(|p| p.list_targets()),
@@ -206,12 +201,11 @@ fn fuzz_subcommand(name: &str) -> App {
 }
 
 fn get_target(args: &ArgMatches) -> Result<String> {
-    Ok(args
-        .value_of_os("TARGET")
+    args.value_of_os("TARGET")
         .expect("TARGET is required")
         .to_os_string()
         .into_string()
-        .map_err(|_| "TARGET must be valid unicode")?)
+        .map_err(|_| anyhow!("TARGET must be valid unicode"))
 }
 
 struct FuzzProject {
@@ -232,13 +226,12 @@ impl FuzzProject {
         };
         let manifest = project.manifest()?;
         if !is_fuzz_manifest(&manifest) {
-            return Err(format!(
+            bail!(
                 "manifest `{:?}` does not look like a cargo-fuzz manifest. \
                  Add following lines to override:\n\
                  [package.metadata]\ncargo-fuzz = true",
                 project.manifest_path()
-            )
-            .into());
+            );
         }
         project.targets = collect_targets(&manifest);
         Ok(project)
@@ -251,7 +244,7 @@ impl FuzzProject {
         let project = FuzzProject {
             root_project: find_package()?,
             targets: Vec::new(),
-            term
+            term,
         };
         let fuzz_project = project.path();
         let root_project_name = project.root_project_name()?;
@@ -260,7 +253,7 @@ impl FuzzProject {
             .expect("target shoud have a default value")
             .to_os_string()
             .into_string()
-            .map_err(|_| "target must be valid unicode")?;
+            .map_err(|_| anyhow!("target must be valid unicode"))?;
 
         // TODO: check if the project is already initialized
         fs::create_dir(&fuzz_project)?;
@@ -274,7 +267,7 @@ impl FuzzProject {
 
         project
             .create_target_template(&target)
-            .chain_err(|| format!("could not create template file for target {:?}", target))?;
+            .with_context(|| format!("could not create template file for target {:?}", target))?;
         Ok(project)
     }
 
@@ -291,7 +284,7 @@ impl FuzzProject {
         self.corpus_for(&target)?;
         self.artifacts_for(&target)?;
         self.create_target_template(&target)
-            .chain_err(|| format!("could not add target {:?}", target))
+            .with_context(|| format!("could not add target {:?}", target))
     }
 
     /// Add a new fuzz target script with a given name
@@ -301,7 +294,7 @@ impl FuzzProject {
             .write(true)
             .create_new(true)
             .open(&target_path)
-            .chain_err(|| format!("could not create target script file at {:?}", target_path))?;
+            .with_context(|| format!("could not create target script file at {:?}", target_path))?;
         script.write_fmt(target_template!())?;
 
         let mut cargo = fs::OpenOptions::new()
@@ -415,9 +408,9 @@ impl FuzzProject {
         let mut cmd = self.cargo("build", args)?;
         let status = cmd
             .status()
-            .chain_err(|| format!("could not execute: {:?}", cmd))?;
+            .with_context(|| format!("could not execute: {:?}", cmd))?;
         if !status.success() {
-            return Err(format!("could not build fuzz script: {:?}", cmd).into());
+            bail!("could not build fuzz script: {:?}", cmd);
         }
 
         let mut cmd = self.cmd(args)?;
@@ -443,7 +436,7 @@ impl FuzzProject {
         if jobs != 1 {
             cmd.arg(format!("-fork={}", jobs));
         }
-        exec_cmd(&mut cmd).chain_err(|| format!("could not execute command: {:?}", cmd))?;
+        exec_cmd(&mut cmd).with_context(|| format!("could not execute command: {:?}", cmd))?;
         Ok(())
     }
 
@@ -459,7 +452,7 @@ impl FuzzProject {
         cmd.arg("-minimize_crash=1")
             .arg(format!("-runs={}", runs))
             .arg(args.value_of("CRASH").unwrap());
-        exec_cmd(&mut cmd).chain_err(|| format!("could not execute command: {:?}", cmd))?;
+        exec_cmd(&mut cmd).with_context(|| format!("could not execute command: {:?}", cmd))?;
         Ok(())
     }
 
@@ -486,7 +479,7 @@ impl FuzzProject {
         // Spawn cmd in child process instead of exec-ing it
         let status = cmd
             .status()
-            .chain_err(|| format!("could not execute command: {:?}", cmd))?;
+            .with_context(|| format!("could not execute command: {:?}", cmd))?;
         if status.success() {
             // move corpus directory into tmp to auto delete it
             fs::rename(&corpus, tmp.path().join("old"))?;
@@ -511,7 +504,7 @@ impl FuzzProject {
         p.push("corpus");
         p.push(target);
         fs::create_dir_all(&p)
-            .chain_err(|| format!("could not make a corpus directory at {:?}", p))?;
+            .with_context(|| format!("could not make a corpus directory at {:?}", p))?;
         Ok(p)
     }
 
@@ -521,7 +514,7 @@ impl FuzzProject {
         p.push(target);
         p.push(""); // trailing slash, necessary for libfuzzer, because it does simple concat
         fs::create_dir_all(&p)
-            .chain_err(|| format!("could not make a artifact directory at {:?}", p))?;
+            .with_context(|| format!("could not make a artifact directory at {:?}", p))?;
         Ok(p)
     }
 
@@ -545,11 +538,11 @@ impl FuzzProject {
     fn manifest(&self) -> Result<toml::Value> {
         let filename = self.manifest_path();
         let mut file = fs::File::open(&filename)
-            .chain_err(|| format!("could not read the manifest file: {:?}", filename))?;
+            .with_context(|| format!("could not read the manifest file: {:?}", filename))?;
         let mut data = Vec::new();
         file.read_to_end(&mut data)?;
         toml::from_slice(&data)
-            .chain_err(|| format!("could not decode the manifest file at {:?}", filename))
+            .with_context(|| format!("could not decode the manifest file at {:?}", filename))
     }
 
     fn root_project_name(&self) -> Result<String> {
@@ -567,7 +560,7 @@ impl FuzzProject {
         if let Some(name) = name {
             Ok(String::from(name))
         } else {
-            Err(format!("{:?} (package.name) is malformed", filename).into())
+            bail!("{:?} (package.name) is malformed", filename);
         }
     }
 }
@@ -614,7 +607,7 @@ fn find_package() -> Result<path::PathBuf> {
             Ok(mut f) => {
                 data.clear();
                 f.read_to_end(&mut data)?;
-                let value: toml::Value = toml::from_slice(&data).chain_err(|| {
+                let value: toml::Value = toml::from_slice(&data).with_context(|| {
                     format!("could not decode the manifest file at {:?}", manifest_path)
                 })?;
                 if !is_fuzz_manifest(&value) {
@@ -627,7 +620,7 @@ fn find_package() -> Result<path::PathBuf> {
             break;
         }
     }
-    Err("could not find a cargo project".into())
+    bail!("could not find a cargo project")
 }
 
 #[cfg(unix)]

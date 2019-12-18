@@ -1,3 +1,4 @@
+use anyhow::Error;
 use term;
 
 #[derive(Clone, Copy)]
@@ -41,10 +42,10 @@ impl TermOutputWrapper {
         }
     }
 
-    pub fn report_error(&self, e: &super::Error) {
+    pub fn report_error(&self, e: &Error) {
         self.red("error:");
         eprintln!(" {}", e);
-        for e in e.iter().skip(1) {
+        for e in e.chain().skip(1) {
             self.red("  caused by:");
             eprintln!(" {}", e);
         }
