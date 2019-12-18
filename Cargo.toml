@@ -9,11 +9,10 @@ categories = ["development-tools::testing"]
 edition = "2018"
 
 [dependencies]
-clap            = "2.24"
-error-chain     = "0.12"
-tempdir         = "0.3"
-term            = "0.4"
-toml            = "0.4"
+clap            = "2.33.0"
+tempdir         = "0.3.7"
+toml            = "0.5.5"
+anyhow = "1.0.25"
 
 [workspace]
 members = ["."]
