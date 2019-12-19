@@ -86,7 +86,6 @@ trait RunCommand {
         .possible_value("fuzz")
         .required(false)
         .hidden(true)),
-
 )]
 enum Command {
     /// Initialize the fuzz directory
@@ -94,6 +93,9 @@ enum Command {
 
     /// Add a new fuzz target
     Add(options::Add),
+
+    /// Build fuzz targets
+    Build(options::Build),
 
     /// List all the existing fuzz targets
     List(options::List),
@@ -118,6 +120,7 @@ impl RunCommand for Command {
         match self {
             Command::Init(x) => x.run_command(),
             Command::Add(x) => x.run_command(),
+            Command::Build(x) => x.run_command(),
             Command::List(x) => x.run_command(),
             Command::Run(x) => x.run_command(),
             Command::Cmin(x) => x.run_command(),

@@ -295,3 +295,89 @@ fn tmin() {
         )
         .success();
 }
+
+#[test]
+fn build_all() {
+    let project = project("build_all").with_fuzz().build();
+
+    // Create some targets.
+    project
+        .cargo_fuzz()
+        .arg("add")
+        .arg("build_all_a")
+        .assert()
+        .success();
+    project
+        .cargo_fuzz()
+        .arg("add")
+        .arg("build_all_b")
+        .assert()
+        .success();
+
+    // Build to ensure that the build directory is created and
+    // `fuzz_build_dir()` won't panic.
+    project.cargo_fuzz().arg("build").assert().success();
+
+    let build_dir = project.fuzz_build_dir().join("debug");
+
+    let a_bin = build_dir.join("build_all_a");
+    let b_bin = build_dir.join("build_all_b");
+
+    // Remove the files we just built.
+    fs::remove_file(&a_bin).unwrap();
+    fs::remove_file(&b_bin).unwrap();
+
+    assert!(!a_bin.is_file());
+    assert!(!b_bin.is_file());
+
+    // Test that building all fuzz targets does in fact recreate the files.
+    project.cargo_fuzz().arg("build").assert().success();
+
+    assert!(a_bin.is_file());
+    assert!(b_bin.is_file());
+}
+
+#[test]
+fn build_one() {
+    let project = project("build_one").with_fuzz().build();
+
+    // Create some targets.
+    project
+        .cargo_fuzz()
+        .arg("add")
+        .arg("build_one_a")
+        .assert()
+        .success();
+    project
+        .cargo_fuzz()
+        .arg("add")
+        .arg("build_one_b")
+        .assert()
+        .success();
+
+    // Build to ensure that the build directory is created and
+    // `fuzz_build_dir()` won't panic.
+    project.cargo_fuzz().arg("build").assert().success();
+
+    let build_dir = project.fuzz_build_dir().join("debug");
+    let a_bin = build_dir.join("build_one_a");
+    let b_bin = build_dir.join("build_one_b");
+
+    // Remove the files we just built.
+    fs::remove_file(&a_bin).unwrap();
+    fs::remove_file(&b_bin).unwrap();
+
+    assert!(!a_bin.is_file());
+    assert!(!b_bin.is_file());
+
+    // Test that we can build one and not the other.
+    project
+        .cargo_fuzz()
+        .arg("build")
+        .arg("build_one_a")
+        .assert()
+        .success();
+
+    assert!(a_bin.is_file());
+    assert!(!b_bin.is_file());
+}

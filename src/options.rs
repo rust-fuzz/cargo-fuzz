@@ -1,11 +1,12 @@
 mod add;
+mod build;
 mod cmin;
 mod init;
 mod list;
 mod run;
 mod tmin;
 
-pub use self::{add::Add, cmin::Cmin, init::Init, list::List, run::Run, tmin::Tmin};
+pub use self::{add::Add, build::Build, cmin::Cmin, init::Init, list::List, run::Run, tmin::Tmin};
 
 use std::fmt;
 use std::str::FromStr;
