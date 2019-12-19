@@ -99,6 +99,14 @@ impl FuzzProject {
     /// Add a new fuzz target script with a given name
     fn create_target_template(&self, target: &str) -> Result<()> {
         let target_path = self.target_path(target);
+
+        // If the user manually created a fuzz project, but hasn't created any
+        // targets yet, the `fuzz_targets` directory might not exist yet,
+        // despite a `fuzz/Cargo.toml` manifest with the `metadata.cargo-fuzz`
+        // key present. Make sure it does exist.
+        fs::create_dir_all(self.fuzz_targets_dir())
+            .context("ensuring that `fuzz_targets` directory exists failed")?;
+
         let mut script = fs::OpenOptions::new()
             .write(true)
             .create_new(true)
@@ -306,7 +314,7 @@ impl FuzzProject {
         Ok(p)
     }
 
-    fn target_path(&self, target: &str) -> PathBuf {
+    fn fuzz_targets_dir(&self) -> PathBuf {
         let mut root = self.path();
         if root.join(crate::FUZZ_TARGETS_DIR_OLD).exists() {
             println!(
@@ -318,6 +326,11 @@ impl FuzzProject {
         } else {
             root.push(crate::FUZZ_TARGETS_DIR);
         }
+        root
+    }
+
+    fn target_path(&self, target: &str) -> PathBuf {
+        let mut root = self.fuzz_targets_dir();
         root.push(target);
         root.set_extension("rs");
         root
@@ -362,7 +375,7 @@ fn collect_targets(value: &toml::Value) -> Vec<String> {
         .as_table()
         .and_then(|v| v.get("bin"))
         .and_then(toml::Value::as_array);
-    if let Some(bins) = bins {
+    let mut bins = if let Some(bins) = bins {
         bins.iter()
             .map(|bin| {
                 bin.as_table()
@@ -373,7 +386,10 @@ fn collect_targets(value: &toml::Value) -> Vec<String> {
             .collect()
     } else {
         Vec::new()
-    }
+    };
+    // Always sort them, so that we have deterministic output.
+    bins.sort();
+    bins
 }
 
 fn is_fuzz_manifest(value: &toml::Value) -> bool {
