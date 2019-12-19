@@ -15,4 +15,5 @@ jobs:
       run: |
         rustup install nightly
         rustup default nightly
+        export RUST_BACKTRACE=1
         cargo test --verbose
