@@ -1,9 +1,12 @@
-use crate::{options, BuildOptions, Sanitizer};
+use crate::options::{self, BuildOptions, Sanitizer};
 use anyhow::{anyhow, bail, Context, Result};
 use std::io::Read;
 use std::io::Write;
 use std::path::PathBuf;
-use std::{env, ffi, fs, process};
+use std::{
+    env, ffi, fs,
+    process::{Command, ExitStatus},
+};
 
 pub struct FuzzProject {
     /// Path to the root cargo project
@@ -120,14 +123,12 @@ impl FuzzProject {
         Ok(cargo.write_fmt(toml_bin_template!(target))?)
     }
 
-    fn cargo(&self, name: &str, build: &BuildOptions) -> Result<process::Command> {
-        let mut cmd = process::Command::new("cargo");
-        cmd.arg(name)
+    fn cargo(&self, subcommand: &str, build: &BuildOptions) -> Result<Command> {
+        let mut cmd = Command::new("cargo");
+        cmd.arg(subcommand)
             .arg("--manifest-path")
             .arg(self.manifest_path())
             .arg("--verbose")
-            .arg("--bin")
-            .arg(&build.target)
             // --target=<TARGET> won't pass rustflags to build scripts
             .arg("--target")
             .arg(&build.triple);
@@ -198,37 +199,55 @@ impl FuzzProject {
         Ok(cmd)
     }
 
-    fn cmd(&self, build: &BuildOptions) -> Result<process::Command> {
+    fn cargo_run(&self, build: &options::BuildOptions, fuzz_target: &str) -> Result<Command> {
         let mut cmd = self.cargo("run", build)?;
+        cmd.arg("--bin").arg(fuzz_target);
 
         let mut artifact_arg = ffi::OsString::from("-artifact_prefix=");
-        artifact_arg.push(self.artifacts_for(&build.target)?);
+        artifact_arg.push(self.artifacts_for(&fuzz_target)?);
         cmd.arg("--").arg(artifact_arg);
 
         Ok(cmd)
     }
 
-    /// Fuzz a given fuzz target
-    pub fn exec_fuzz<'a>(&self, run: &options::Run) -> Result<()> {
-        let mut cmd = self.cargo("build", &run.build)?;
-        let status = cmd
-            .status()
-            .with_context(|| format!("could not execute: {:?}", cmd))?;
-        if !status.success() {
-            bail!("could not build fuzz script: {:?}", cmd);
+    pub fn exec_build(
+        &self,
+        build: &options::BuildOptions,
+        fuzz_target: Option<&str>,
+    ) -> Result<()> {
+        let mut cmd = self.cargo("build", build)?;
+
+        if let Some(fuzz_target) = fuzz_target {
+            cmd.arg("--bin").arg(fuzz_target);
+        } else {
+            cmd.arg("--bins");
         }
 
-        let mut cmd = self.cmd(&run.build)?;
+        let status = cmd
+            .status()
+            .with_context(|| format!("failed to execute: {:?}", cmd))?;
+        if !status.success() {
+            bail!("failed to build fuzz script: {:?}", cmd);
+        }
+
+        Ok(())
+    }
+
+    /// Fuzz a given fuzz target
+    pub fn exec_fuzz(&self, run: &options::Run) -> Result<()> {
+        self.exec_build(&run.build, Some(&run.target))?;
+        let mut cmd = self.cargo_run(&run.build, &run.target)?;
 
         for arg in &run.args {
             cmd.arg(arg);
         }
+
         if !run.corpus.is_empty() {
             for corpus in &run.corpus {
                 cmd.arg(corpus);
             }
         } else {
-            cmd.arg(self.corpus_for(&run.build.target)?);
+            cmd.arg(self.corpus_for(&run.target)?);
         }
 
         if run.jobs != 1 {
@@ -239,8 +258,8 @@ impl FuzzProject {
     }
 
     pub fn exec_tmin(&self, tmin: &options::Tmin) -> Result<()> {
-        let mut cmd = self.cmd(&tmin.build)?;
-
+        self.exec_build(&tmin.build, Some(&tmin.target))?;
+        let mut cmd = self.cargo_run(&tmin.build, &tmin.target)?;
         cmd.arg("-minimize_crash=1")
             .arg(format!("-runs={}", tmin.runs))
             .arg(&tmin.test_case);
@@ -249,12 +268,13 @@ impl FuzzProject {
     }
 
     pub fn exec_cmin(&self, cmin: &options::Cmin) -> Result<()> {
-        let mut cmd = self.cmd(&cmin.build)?;
+        self.exec_build(&cmin.build, Some(&cmin.target))?;
+        let mut cmd = self.cargo_run(&cmin.build, &cmin.target)?;
 
         let corpus = if let Some(corpus) = cmin.corpus.clone() {
             corpus
         } else {
-            self.corpus_for(&cmin.build.target)?
+            self.corpus_for(&cmin.target)?
         };
         let corpus = corpus
             .to_str()
@@ -436,12 +456,12 @@ fn find_package() -> Result<PathBuf> {
 }
 
 #[cfg(unix)]
-fn exec_cmd(cmd: &mut process::Command) -> Result<process::ExitStatus> {
+fn exec_cmd(cmd: &mut Command) -> Result<ExitStatus> {
     use std::os::unix::process::CommandExt;
     Err(cmd.exec().into())
 }
 
 #[cfg(not(unix))]
-fn exec_cmd(cmd: &mut process::Command) -> Result<process::ExitStatus> {
+fn exec_cmd(cmd: &mut Command) -> Result<ExitStatus> {
     cmd.status().map_err(|e| e.into())
 }

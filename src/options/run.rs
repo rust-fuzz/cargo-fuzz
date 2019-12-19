@@ -1,4 +1,4 @@
-use crate::{project::FuzzProject, BuildOptions, RunCommand};
+use crate::{options::BuildOptions, project::FuzzProject, RunCommand};
 use anyhow::Result;
 use structopt::StructOpt;
 
@@ -6,6 +6,10 @@ use structopt::StructOpt;
 pub struct Run {
     #[structopt(flatten)]
     pub build: BuildOptions,
+
+    #[structopt(required(true))]
+    /// Name of the fuzz target
+    pub target: String,
 
     /// Custom corpus directories or artifact files.
     pub corpus: Vec<String>,

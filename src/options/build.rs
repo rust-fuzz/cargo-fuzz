@@ -1,25 +1,19 @@
 use crate::{options::BuildOptions, project::FuzzProject, RunCommand};
 use anyhow::Result;
-use std::path::PathBuf;
 use structopt::StructOpt;
 
 #[derive(Clone, Debug, StructOpt)]
-pub struct Cmin {
+pub struct Build {
     #[structopt(flatten)]
     pub build: BuildOptions,
 
-    #[structopt(required(true))]
-    /// Name of the fuzz target
-    pub target: String,
-
-    #[structopt(parse(from_os_str))]
-    /// The corpus directory to minify into
-    pub corpus: Option<PathBuf>,
+    /// Name of the fuzz target to build, or build all targets if not supplied
+    pub target: Option<String>,
 }
 
-impl RunCommand for Cmin {
+impl RunCommand for Build {
     fn run_command(&mut self) -> Result<()> {
         let project = FuzzProject::find_existing()?;
-        project.exec_cmin(self)
+        project.exec_build(&self.build, self.target.as_ref().map(|s| s.as_str()))
     }
 }

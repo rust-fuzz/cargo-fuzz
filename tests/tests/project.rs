@@ -177,8 +177,25 @@ impl Project {
         self.root.clone()
     }
 
-    pub fn build_dir(&self) -> PathBuf {
-        self.root().join("target")
+    /// Get the build directory for the fuzz targets.
+    ///
+    /// This will panic if no fuzz targets have been built yet.
+    pub fn fuzz_build_dir(&self) -> PathBuf {
+        // Because we pass an explicit `--target` to builds, its as if we were
+        // cross-compiling even when we technically aren't, and the artifacts
+        // end up in `target/<triple>/*`.
+        target_tests()
+            .join("target")
+            .read_dir()
+            .expect("should get directory entries for tests' target directory")
+            .map(|e| {
+                e.expect("should read an entry from the tests' target directory OK")
+                    .path()
+                    .to_owned()
+            })
+            .filter(|d| d.is_dir() && !d.ends_with("debug") && !d.ends_with("release"))
+            .next()
+            .unwrap()
     }
 
     pub fn fuzz_dir(&self) -> PathBuf {

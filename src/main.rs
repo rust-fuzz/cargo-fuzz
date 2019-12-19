@@ -6,8 +6,6 @@
 // copied, modified, or distributed except according to those terms.
 
 use anyhow::Result;
-use std::fmt;
-use std::str::FromStr;
 use structopt::StructOpt;
 
 #[macro_use]
@@ -88,7 +86,6 @@ trait RunCommand {
         .possible_value("fuzz")
         .required(false)
         .hidden(true)),
-
 )]
 enum Command {
     /// Initialize the fuzz directory
@@ -96,6 +93,9 @@ enum Command {
 
     /// Add a new fuzz target
     Add(options::Add),
+
+    /// Build fuzz targets
+    Build(options::Build),
 
     /// List all the existing fuzz targets
     List(options::List),
@@ -120,97 +120,13 @@ impl RunCommand for Command {
         match self {
             Command::Init(x) => x.run_command(),
             Command::Add(x) => x.run_command(),
+            Command::Build(x) => x.run_command(),
             Command::List(x) => x.run_command(),
             Command::Run(x) => x.run_command(),
             Command::Cmin(x) => x.run_command(),
             Command::Tmin(x) => x.run_command(),
         }
     }
-}
-
-#[derive(Debug, Clone, Copy)]
-enum Sanitizer {
-    Address,
-    Leak,
-    Memory,
-    Thread,
-}
-
-impl fmt::Display for Sanitizer {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{}",
-            match self {
-                Sanitizer::Address => "address",
-                Sanitizer::Leak => "leak",
-                Sanitizer::Memory => "memory",
-                Sanitizer::Thread => "thread",
-            }
-        )
-    }
-}
-
-impl FromStr for Sanitizer {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "address" => Ok(Sanitizer::Address),
-            "leak" => Ok(Sanitizer::Leak),
-            "memory" => Ok(Sanitizer::Memory),
-            "thread" => Ok(Sanitizer::Thread),
-            _ => Err(format!("unknown sanitizer: {}", s)),
-        }
-    }
-}
-
-#[derive(Clone, Debug, StructOpt)]
-pub struct BuildOptions {
-    #[structopt(short = "O", long = "release")]
-    /// Build artifacts in release mode, with optimizations
-    release: bool,
-
-    #[structopt(short = "a", long = "debug-assertions")]
-    /// Build artifacts with debug assertions enabled (default if not -O)
-    debug_assertions: bool,
-
-    #[structopt(long = "no-default-features")]
-    /// Build artifacts with default Cargo features disabled
-    no_default_features: bool,
-
-    #[structopt(
-        long = "all-features",
-        conflicts_with = "no-default-features",
-        conflicts_with = "features"
-    )]
-    /// Build artifacts with all Cargo features enabled
-    all_features: bool,
-
-    #[structopt(long = "features")]
-    /// Build artifacts with given Cargo feature enabled
-    features: Option<String>,
-
-    #[structopt(
-        short = "s",
-        long = "sanitizer",
-        possible_values(&["address", "leak", "memory", "thread"]),
-        default_value = "address",
-    )]
-    /// Use a specific sanitizer
-    sanitizer: Sanitizer,
-
-    #[structopt(
-        name = "triple",
-        long = "target",
-        default_value(utils::default_target())
-    )]
-    /// Target triple of the fuzz target
-    triple: String,
-
-    #[structopt(required(true))]
-    /// Name of the fuzz target
-    target: String,
 }
 
 fn main() -> Result<()> {
