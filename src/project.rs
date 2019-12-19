@@ -253,7 +253,7 @@ impl FuzzProject {
             .ok_or_else(|| anyhow!("corpus must be valid unicode"))?
             .to_owned();
 
-        let tmp = tempdir::TempDir::new_in(self.path(), "cmin")?;
+        let tmp = tempfile::TempDir::new_in(self.path())?;
         let tmp_corpus = tmp.path().join("corpus");
         fs::create_dir(&tmp_corpus)?;
 
