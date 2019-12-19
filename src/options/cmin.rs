@@ -8,6 +8,10 @@ pub struct Cmin {
     #[structopt(flatten)]
     pub build: BuildOptions,
 
+    #[structopt(required(true))]
+    /// Name of the fuzz target
+    pub target: String,
+
     #[structopt(parse(from_os_str))]
     /// The corpus directory to minify into
     pub corpus: Option<PathBuf>,

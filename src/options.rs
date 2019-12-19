@@ -90,8 +90,4 @@ pub struct BuildOptions {
     )]
     /// Target triple of the fuzz target
     pub triple: String,
-
-    #[structopt(required(true))]
-    /// Name of the fuzz target
-    pub target: String,
 }
