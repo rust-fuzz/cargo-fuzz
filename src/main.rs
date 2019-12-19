@@ -228,7 +228,7 @@ struct FuzzProject {
 }
 
 impl FuzzProject {
-    fn new() -> Result<Self> {
+    fn find_existing() -> Result<Self> {
         let mut project = FuzzProject {
             root_project: find_package()?,
             targets: Vec::new(),

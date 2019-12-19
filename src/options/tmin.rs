@@ -1,4 +1,4 @@
-use crate::{BuildOptions, FuzzProject, RunCommand};
+use crate::{FuzzProject, BuildOptions, RunCommand};
 use anyhow::Result;
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -28,7 +28,7 @@ pub struct Tmin {
 
 impl RunCommand for Tmin {
     fn run_command(&mut self) -> Result<()> {
-        let project = FuzzProject::new()?;
+        let project = FuzzProject::find_existing()?;
         project.exec_tmin(self)
     }
 }

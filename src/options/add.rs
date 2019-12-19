@@ -11,7 +11,7 @@ pub struct Add {
 
 impl RunCommand for Add {
     fn run_command(&mut self) -> Result<()> {
-        let project = FuzzProject::new()?;
+        let project = FuzzProject::find_existing()?;
         project.add_target(self)
     }
 }
