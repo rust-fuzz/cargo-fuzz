@@ -209,14 +209,13 @@ fn run_with_crash() {
         .arg("yes_crash")
         .arg("--")
         .arg("-runs=1000")
+        .env("RUST_BACKTRACE", "1")
         .assert()
         .stderr(
             predicate::str::contains("panicked at 'I'm afraid of number 7'")
                 .and(predicate::str::contains("ERROR: libFuzzer: deadly signal"))
-                .and(
-                    predicate::str::contains("in run_with_crash::fail_fuzzing")
-                        .and(predicate::str::contains("fuzz/artifacts/yes_crash/crash-")),
-                ),
+                .and(predicate::str::contains("run_with_crash::fail_fuzzing"))
+                .and(predicate::str::contains("fuzz/artifacts/yes_crash/crash-")),
         )
         .failure();
 }
