@@ -1,4 +1,4 @@
-use crate::{project::FuzzProject, BuildOptions, RunCommand};
+use crate::{options::BuildOptions, project::FuzzProject, RunCommand};
 use anyhow::Result;
 use std::path::PathBuf;
 use structopt::StructOpt;

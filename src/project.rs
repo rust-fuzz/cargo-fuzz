@@ -1,4 +1,4 @@
-use crate::{options, BuildOptions, Sanitizer};
+use crate::options::{self, BuildOptions, Sanitizer};
 use anyhow::{anyhow, bail, Context, Result};
 use std::io::Read;
 use std::io::Write;
