@@ -1,4 +1,4 @@
-use crate::{FuzzProject, BuildOptions, RunCommand};
+use crate::{project::FuzzProject, BuildOptions, RunCommand};
 use anyhow::Result;
 use structopt::StructOpt;
 
