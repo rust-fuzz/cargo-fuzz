@@ -1,10 +1,12 @@
-# Cargo-fuzz
+<div align="center">
 
-Command-line wrapper for using `libFuzzer`. Easy to use, no need to recompile LLVM!
+  <h1><code>cargo fuzz</code></h1>
 
-Note: `libFuzzer` needs LLVM sanitizer support, so this is only works on x86-64 Linux and x86-64 macOS for now. This also needs a nightly since it uses some unstable command-line flags. You'll also need a C++ compiler with C++11 support.
+  <p><b>A `cargo` subcommand for using `libFuzzer`! Easy to use! No need to recompile LLVM!</b></p>
 
-This crate is currently under some churn -- in case stuff isn't working, please reinstall it (`cargo install cargo-fuzz -f`). Rerunning `cargo fuzz init` after moving your `fuzz` folder and updating this crate may get you a better generated `fuzz/Cargo.toml`. Expect this to settle down soon.
+  <img alt="GitHub Actions Status" src="https://github.com/rust-fuzz/cargo-fuzz/workflows/ci/badge.svg"/>
+
+</div>
 
 ## Installation
 
@@ -12,18 +14,62 @@ This crate is currently under some churn -- in case stuff isn't working, please 
 $ cargo install cargo-fuzz
 ```
 
+Note: `libFuzzer` needs LLVM sanitizer support, so this only works on x86-64
+Linux and x86-64 macOS for now. This also needs a nightly Rust toolchain since
+it uses some unstable command-line flags. Finally, you'll also need a C++
+compiler with C++11 support.
+
+If you have an old version of `cargo fuzz`, you can upgrade with this command:
+
+```sh
+$ cargo install -f cargo-fuzz
+```
+
+## Usage
+
+### `cargo fuzz init`
+
+Initialize a `cargo fuzz` project for your crate!
+
+### `cargo fuzz add <target>`
+
+Create a new fuzzing target!
+
+### `cargo fuzz run <target>`
+
+Run a fuzzing target and find bugs!
+
+### `cargo fuzz tmin <target> <input>`
+
+Found a failing input? Minify it to the smallest input that causes that failure
+for easier debugging!
+
+### `cargo fuzz cmin <target>`
+
+Minify your corpus of input files!
+
 ## Documentation
 
-Documentation can be found in the [Rust Fuzz Book](https://rust-fuzz.github.io/book/cargo-fuzz.html).
+Documentation can be found in the [Rust Fuzz
+Book](https://rust-fuzz.github.io/book/cargo-fuzz.html).
+
+You can also always find the full command-line options that are available with
+`--help`:
+
+```sh
+$ cargo fuzz --help
+```
 
 ## Trophy case
 
-The trophy case has moved to a separate dedicated repository:
-
-https://github.com/rust-fuzz/trophy-case
+[The trophy case](https://github.com/rust-fuzz/trophy-case) has a list of bugs
+found by `cargo fuzz` (and others). Did `cargo fuzz` and libFuzzer find a bug
+for you? Add it to the trophy case!
 
 ## License
 
-cargo-fuzz is distributed under the terms of both the MIT license and the Apache License (Version 2.0).
+`cargo-fuzz` is distributed under the terms of both the MIT license and the
+Apache License (Version 2.0).
 
-See [LICENSE-APACHE](./LICENSE-APACHE) and [LICENSE-MIT](./LICENSE-MIT) for details.
+See [LICENSE-APACHE](./LICENSE-APACHE) and [LICENSE-MIT](./LICENSE-MIT) for
+details.
