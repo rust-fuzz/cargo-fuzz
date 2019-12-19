@@ -221,6 +221,125 @@ fn run_with_crash() {
 }
 
 #[test]
+fn run_one_input() {
+    let corpus = Path::new("fuzz").join("corpus").join("run_one");
+
+    let project = project("run_one_input")
+        .with_fuzz()
+        .fuzz_target(
+            "run_one",
+            r#"
+                #![no_main]
+                use libfuzzer_sys::fuzz_target;
+
+                fuzz_target!(|data: &[u8]| {
+                    assert!(data.is_empty());
+                });
+            "#,
+        )
+        .file(corpus.join("pass"), "")
+        .file(corpus.join("fail"), "not empty")
+        .build();
+
+    project
+        .cargo_fuzz()
+        .arg("run")
+        .arg("run_one")
+        .arg(corpus.join("pass"))
+        .assert()
+        .stderr(
+            predicate::str::contains("Running 1 inputs 1 time(s) each.").and(
+                predicate::str::contains("Running: fuzz/corpus/run_one/pass"),
+            ),
+        )
+        .success();
+}
+
+#[test]
+fn run_a_few_inputs() {
+    let corpus = Path::new("fuzz").join("corpus").join("run_few");
+
+    let project = project("run_a_few_inputs")
+        .with_fuzz()
+        .fuzz_target(
+            "run_few",
+            r#"
+                #![no_main]
+                use libfuzzer_sys::fuzz_target;
+
+                fuzz_target!(|data: &[u8]| {
+                    assert!(data.len() != 4);
+                });
+            "#,
+        )
+        .file(corpus.join("pass-0"), "")
+        .file(corpus.join("pass-1"), "1")
+        .file(corpus.join("pass-2"), "12")
+        .file(corpus.join("pass-3"), "123")
+        .file(corpus.join("fail"), "fail")
+        .build();
+
+    project
+        .cargo_fuzz()
+        .arg("run")
+        .arg("run_few")
+        .arg(corpus.join("pass-0"))
+        .arg(corpus.join("pass-1"))
+        .arg(corpus.join("pass-2"))
+        .arg(corpus.join("pass-3"))
+        .assert()
+        .stderr(
+            predicate::str::contains("Running 4 inputs 1 time(s) each.").and(
+                predicate::str::contains("Running: fuzz/corpus/run_few/pass"),
+            ),
+        )
+        .success();
+}
+
+#[test]
+fn run_alt_corpus() {
+    let corpus = Path::new("fuzz").join("corpus").join("run_alt");
+    let alt_corpus = Path::new("fuzz").join("alt-corpus").join("run_alt");
+
+    let project = project("run_alt_corpus")
+        .with_fuzz()
+        .fuzz_target(
+            "run_alt",
+            r#"
+                #![no_main]
+                use libfuzzer_sys::fuzz_target;
+
+                fuzz_target!(|data: &[u8]| {
+                    assert!(data.len() <= 1);
+                });
+            "#,
+        )
+        .file(corpus.join("fail"), "fail")
+        .file(alt_corpus.join("pass-0"), "0")
+        .file(alt_corpus.join("pass-1"), "1")
+        .file(alt_corpus.join("pass-2"), "2")
+        .build();
+
+    project
+        .cargo_fuzz()
+        .arg("run")
+        .arg("run_alt")
+        .arg(&alt_corpus)
+        .arg("--")
+        .arg("-runs=0")
+        .assert()
+        .stderr(
+            predicate::str::contains("3 files found in fuzz/alt-corpus/run_alt")
+                .and(predicate::str::contains("fuzz/corpus/run_alt").not())
+                // libFuzzer will always test the empty input, so the number of
+                // runs performed is always one more than the number of files in
+                // the corpus.
+                .and(predicate::str::contains("Done 4 runs in")),
+        )
+        .success();
+}
+
+#[test]
 fn cmin() {
     let corpus = Path::new("fuzz").join("corpus").join("foo");
     let project = project("cmin")
