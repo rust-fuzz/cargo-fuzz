@@ -2,7 +2,7 @@
 
   <h1><code>cargo fuzz</code></h1>
 
-  <p><b>A `cargo` subcommand for using `libFuzzer`! Easy to use! No need to recompile LLVM!</b></p>
+  <p><b>A <code>cargo</code> subcommand for using <code>libFuzzer</code>! Easy to use! No need to recompile LLVM!</b></p>
 
   <img alt="GitHub Actions Status" src="https://github.com/rust-fuzz/cargo-fuzz/workflows/ci/badge.svg"/>
 
