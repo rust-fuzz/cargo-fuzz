@@ -215,7 +215,26 @@ fn run_with_crash() {
             predicate::str::contains("panicked at 'I'm afraid of number 7'")
                 .and(predicate::str::contains("ERROR: libFuzzer: deadly signal"))
                 .and(predicate::str::contains("run_with_crash::fail_fuzzing"))
-                .and(predicate::str::contains("fuzz/artifacts/yes_crash/crash-")),
+                .and(predicate::str::contains(
+                    "────────────────────────────────────────────────────────────────────────────────\n\
+                     \n\
+                     Failing input:\n\
+                     \n\
+                     \tfuzz/artifacts/yes_crash/crash-"
+                ))
+                // TODO: need to wait on enabling this until we release a new libfuzzer.
+                //
+                // .and(predicate::str::contains("Output of `std::fmt::Debug`:"))
+                .and(predicate::str::contains(
+                    "Reproduce with:\n\
+                     \n\
+                     \tcargo fuzz run yes_crash fuzz/artifacts/yes_crash/crash-"
+                ))
+                .and(predicate::str::contains(
+                    "Minimize test case with:\n\
+                     \n\
+                     \tcargo fuzz tmin yes_crash fuzz/artifacts/yes_crash/crash-"
+                )),
         )
         .failure();
 }
@@ -410,7 +429,18 @@ fn tmin() {
         .assert()
         .stderr(
             predicates::str::contains("CRASH_MIN: minimizing crash input: ")
-                .and(predicate::str::contains("(1 bytes) caused a crash")),
+                .and(predicate::str::contains("(1 bytes) caused a crash"))
+                .and(predicate::str::contains(
+                    "────────────────────────────────────────────────────────────────────────────────\n\
+                     \n\
+                     Minimized artifact:\n\
+                     \n\
+                     \tfuzz/artifacts/i_hate_zed/minimized-from-"))
+                .and(predicate::str::contains(
+                    "Reproduce with:\n\
+                     \n\
+                     \tcargo fuzz run i_hate_zed fuzz/artifacts/i_hate_zed/minimized-from-"
+                )),
         )
         .success();
 }

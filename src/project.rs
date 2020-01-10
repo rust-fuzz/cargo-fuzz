@@ -1,11 +1,13 @@
 use crate::options::{self, BuildOptions, Sanitizer};
 use anyhow::{anyhow, bail, Context, Result};
+use std::collections::HashSet;
 use std::io::Read;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::{
     env, ffi, fs,
-    process::{Command, ExitStatus},
+    process::{Command, Stdio},
+    time,
 };
 
 pub struct FuzzProject {
@@ -233,6 +235,85 @@ impl FuzzProject {
         Ok(())
     }
 
+    fn get_artifacts_since(
+        &self,
+        target: &str,
+        since: &time::SystemTime,
+    ) -> Result<HashSet<PathBuf>> {
+        let mut artifacts = HashSet::new();
+
+        let artifacts_dir = self.artifacts_for(target)?;
+
+        for entry in fs::read_dir(&artifacts_dir).with_context(|| {
+            format!(
+                "failed to read directory entries of {}",
+                artifacts_dir.display()
+            )
+        })? {
+            let entry = entry.with_context(|| {
+                format!(
+                    "failed to read directory entry inside {}",
+                    artifacts_dir.display()
+                )
+            })?;
+
+            let metadata = entry
+                .metadata()
+                .context("failed to read artifact metadata")?;
+            let modified = metadata
+                .modified()
+                .context("failed to get artifact modification time")?;
+            if !metadata.is_file() || modified <= *since {
+                continue;
+            }
+
+            artifacts.insert(entry.path());
+        }
+
+        Ok(artifacts)
+    }
+
+    fn run_fuzz_target_debug_formatter(
+        &self,
+        build: &BuildOptions,
+        target: &str,
+        artifact: &Path,
+    ) -> Result<String> {
+        let debug_output = tempfile::NamedTempFile::new().context("failed to create temp file")?;
+
+        let mut cmd = self.cargo_run(&build, &target)?;
+        cmd.stdin(Stdio::null());
+        cmd.env("RUST_LIBFUZZER_DEBUG_PATH", &debug_output.path());
+        cmd.arg(&artifact);
+
+        let output = cmd
+            .output()
+            .with_context(|| format!("failed to run command: {:?}", cmd))?;
+
+        if !output.status.success() {
+            bail!(
+                "Fuzz target '{target}' exited with failure when attemping to \
+                 debug formatting an interesting input that we discovered!\n\n\
+                 Artifact: {artifact}\n\n\
+                 Command: {cmd:?}\n\n\
+                 Status: {status}\n\n\
+                 === stdout ===\n\
+                 {stdout}\n\n\
+                 === stderr ===\n\
+                 {stderr}",
+                target = target,
+                status = output.status,
+                cmd = cmd,
+                artifact = artifact.display(),
+                stdout = String::from_utf8_lossy(&output.stdout),
+                stderr = String::from_utf8_lossy(&output.stderr),
+            );
+        }
+
+        let debug = fs::read_to_string(&debug_output).context("failed to read temp file")?;
+        Ok(debug)
+    }
+
     /// Fuzz a given fuzz target
     pub fn exec_fuzz(&self, run: &options::Run) -> Result<()> {
         self.exec_build(&run.build, Some(&run.target))?;
@@ -253,8 +334,64 @@ impl FuzzProject {
         if run.jobs != 1 {
             cmd.arg(format!("-fork={}", run.jobs));
         }
-        exec_cmd(&mut cmd).with_context(|| format!("could not execute command: {:?}", cmd))?;
-        Ok(())
+
+        // When libfuzzer finds failing inputs, those inputs will end up in the
+        // artifacts directory. To easily filter old artifacts from new ones,
+        // get the current time, and then later we only consider files modified
+        // after now.
+        let before_fuzzing = time::SystemTime::now();
+
+        let mut child = cmd
+            .spawn()
+            .with_context(|| format!("failed to spawn command: {:?}", cmd))?;
+        let status = child
+            .wait()
+            .with_context(|| format!("failed to wait on child process for command: {:?}", cmd))?;
+        if status.success() {
+            return Ok(());
+        }
+
+        // Get and print the `Debug` formatting of any new artifacts, along with
+        // tips about how to reproduce failures and/or minimize test cases.
+
+        let new_artifacts = self.get_artifacts_since(&run.target, &before_fuzzing)?;
+
+        for artifact in new_artifacts {
+            // To make the artifact a little easier to read, strip the current
+            // directory prefix when possible.
+            let artifact = strip_current_dir_prefix(&artifact);
+
+            eprintln!("\n{:─<80}", "");
+            eprintln!("\nFailing input:\n\n\t{}\n", artifact.display());
+
+            // Note: ignore errors when running the debug formatter. This most
+            // likely just means that we're dealing with a fuzz target that uses
+            // an older version of the libfuzzer crate, and doesn't support
+            // `RUST_LIBFUZZER_DEBUG_PATH`.
+            if let Ok(debug) =
+                self.run_fuzz_target_debug_formatter(&run.build, &run.target, artifact)
+            {
+                eprintln!("Output of `std::fmt::Debug`:\n");
+                for l in debug.lines() {
+                    eprintln!("\t{}", l);
+                }
+                eprintln!();
+            }
+
+            eprintln!(
+                "Reproduce with:\n\n\tcargo fuzz run {target} {artifact}\n",
+                target = &run.target,
+                artifact = artifact.display()
+            );
+            eprintln!(
+                "Minimize test case with:\n\n\tcargo fuzz tmin {target} {artifact}\n",
+                target = &run.target,
+                artifact = artifact.display()
+            );
+        }
+
+        eprintln!("{:─<80}\n", "");
+        bail!("Fuzz target exited with {}", status)
     }
 
     pub fn exec_tmin(&self, tmin: &options::Tmin) -> Result<()> {
@@ -263,7 +400,70 @@ impl FuzzProject {
         cmd.arg("-minimize_crash=1")
             .arg(format!("-runs={}", tmin.runs))
             .arg(&tmin.test_case);
-        exec_cmd(&mut cmd).with_context(|| format!("could not execute command: {:?}", cmd))?;
+
+        let before_tmin = time::SystemTime::now();
+
+        let mut child = cmd
+            .spawn()
+            .with_context(|| format!("failed to spawn command: {:?}", cmd))?;
+        let status = child
+            .wait()
+            .with_context(|| format!("failed to wait on child process for command: {:?}", cmd))?;
+        if !status.success() {
+            eprintln!("\n{:─<80}\n", "");
+            return Err(anyhow!("Command `{:?}` exited with {}", cmd, status))
+                .with_context(|| {
+                    "Test case minimization failed.\n\
+                     \n\
+                     Usually this isn't a hard error, and just means that libfuzzer\n\
+                     doesn't know how to minimize the test case any further while\n\
+                     still reproducing the original crash.\n\
+                     \n\
+                     See the logs above for details."
+                })
+                .into();
+        }
+
+        // Find and display the most recently modified artifact, which is
+        // presumably the result of minification. Yeah, this is a little hacky,
+        // but it seems to work. I don't want to parse libfuzzer's stderr output
+        // and hope it never changes.
+        let minimized_artifact = self
+            .get_artifacts_since(&tmin.target, &before_tmin)?
+            .into_iter()
+            .max_by_key(|a| {
+                a.metadata()
+                    .and_then(|m| m.modified())
+                    .unwrap_or(time::SystemTime::UNIX_EPOCH)
+            });
+
+        if let Some(artifact) = minimized_artifact {
+            let artifact = strip_current_dir_prefix(&artifact);
+
+            eprintln!("\n{:─<80}\n", "");
+            eprintln!("Minimized artifact:\n\n\t{}\n", artifact.display());
+
+            // Note: ignore errors when running the debug formatter. This most
+            // likely just means that we're dealing with a fuzz target that uses
+            // an older version of the libfuzzer crate, and doesn't support
+            // `RUST_LIBFUZZER_DEBUG_PATH`.
+            if let Ok(debug) =
+                self.run_fuzz_target_debug_formatter(&tmin.build, &tmin.target, artifact)
+            {
+                eprintln!("Output of `std::fmt::Debug`:\n");
+                for l in debug.lines() {
+                    eprintln!("\t{}", l);
+                }
+                eprintln!();
+            }
+
+            eprintln!(
+                "Reproduce with:\n\n\tcargo fuzz run {target} {artifact}\n",
+                target = &tmin.target,
+                artifact = artifact.display()
+            );
+        }
+
         Ok(())
     }
 
@@ -455,13 +655,9 @@ fn find_package() -> Result<PathBuf> {
     bail!("could not find a cargo project")
 }
 
-#[cfg(unix)]
-fn exec_cmd(cmd: &mut Command) -> Result<ExitStatus> {
-    use std::os::unix::process::CommandExt;
-    Err(cmd.exec().into())
-}
-
-#[cfg(not(unix))]
-fn exec_cmd(cmd: &mut Command) -> Result<ExitStatus> {
-    cmd.status().map_err(|e| e.into())
+fn strip_current_dir_prefix(path: &Path) -> &Path {
+    env::current_dir()
+        .ok()
+        .and_then(|curdir| path.strip_prefix(curdir).ok())
+        .unwrap_or(&path)
 }
