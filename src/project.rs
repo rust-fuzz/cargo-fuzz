@@ -6,7 +6,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::{
     env, ffi, fs,
-    process::{Command, ExitStatus, Stdio},
+    process::{Command, Stdio},
 };
 
 pub struct FuzzProject {
@@ -394,7 +394,77 @@ impl FuzzProject {
         cmd.arg("-minimize_crash=1")
             .arg(format!("-runs={}", tmin.runs))
             .arg(&tmin.test_case);
-        exec_cmd(&mut cmd).with_context(|| format!("could not execute command: {:?}", cmd))?;
+
+        let old_artifacts = self.get_artifact_paths(&tmin.target)?;
+
+        let mut child = cmd
+            .spawn()
+            .with_context(|| format!("failed to spawn command: {:?}", cmd))?;
+        let status = child
+            .wait()
+            .with_context(|| format!("failed to wait on child process for command: {:?}", cmd))?;
+        if !status.success() {
+            eprintln!("\n{:─<80}\n", "");
+            return Err(anyhow!("Command `{:?}` exited with {}", cmd, status))
+                .with_context(|| {
+                    "Test case minimization failed.\n\
+                     \n\
+                     Usually this isn't a hard error, and just means that libfuzzer\n\
+                     doesn't know how to minimize the test case any further while\n\
+                     still reproducing the original crash.\n\
+                     \n\
+                     See the logs above for details."
+                })
+                .into();
+        }
+
+        // Find and display the most recently modified artifact, which is
+        // presumably the result of minification. Yeah, this is a little hacky,
+        // but it seems to work. I don't want to parse libfuzzer's stderr output
+        // and hope it never changes.
+        let mut new_artifacts: Vec<_> = self
+            .get_artifact_paths(&tmin.target)?
+            .into_iter()
+            .filter(|a| !old_artifacts.contains(a))
+            .collect();
+        new_artifacts.sort_by_key(|p| {
+            p.metadata()
+                .and_then(|m| m.modified())
+                .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
+        });
+
+        if let Some(artifact) = new_artifacts.pop() {
+            // To make the artifact a little easier to read, strip the current
+            // directory prefix when possible.
+            let artifact = std::env::current_dir()
+                .ok()
+                .and_then(|curdir| artifact.strip_prefix(curdir).ok())
+                .unwrap_or(&artifact);
+
+            eprintln!("\n{:─<80}\n", "");
+            eprintln!("Minimized artifact:\n\n\t{}\n", artifact.display());
+
+            // Note: ignore errors when running the debug formatter. This most
+            // likely just means that we're dealing with a fuzz target that uses
+            // an older version of the libfuzzer crate, and doesn't support
+            // `RUST_LIBFUZZER_DEBUG_PATH`.
+            if let Ok(debug) =
+                self.run_fuzz_target_debug_formatter(&tmin.build, &tmin.target, artifact)
+            {
+                eprintln!("Output of `std::fmt::Debug`:\n");
+                for l in debug.lines() {
+                    eprintln!("\t{}", l);
+                }
+                eprintln!();
+            }
+
+            eprintln!(
+                "Reproduce with:\n\n\tcargo fuzz run {target} {artifact}\n",
+                target = &tmin.target,
+                artifact = artifact.display()
+            );
+        }
+
         Ok(())
     }
 
@@ -584,15 +654,4 @@ fn find_package() -> Result<PathBuf> {
         }
     }
     bail!("could not find a cargo project")
-}
-
-#[cfg(unix)]
-fn exec_cmd(cmd: &mut Command) -> Result<ExitStatus> {
-    use std::os::unix::process::CommandExt;
-    Err(cmd.exec().into())
-}
-
-#[cfg(not(unix))]
-fn exec_cmd(cmd: &mut Command) -> Result<ExitStatus> {
-    cmd.status().map_err(|e| e.into())
 }

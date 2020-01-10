@@ -429,7 +429,18 @@ fn tmin() {
         .assert()
         .stderr(
             predicates::str::contains("CRASH_MIN: minimizing crash input: ")
-                .and(predicate::str::contains("(1 bytes) caused a crash")),
+                .and(predicate::str::contains("(1 bytes) caused a crash"))
+                .and(predicate::str::contains(
+                    "────────────────────────────────────────────────────────────────────────────────\n\
+                     \n\
+                     Minimized artifact:\n\
+                     \n\
+                     \tfuzz/artifacts/i_hate_zed/minimized-from-"))
+                .and(predicate::str::contains(
+                    "Reproduce with:\n\
+                     \n\
+                     \tcargo fuzz run i_hate_zed fuzz/artifacts/i_hate_zed/minimized-from-"
+                )),
         )
         .success();
 }
