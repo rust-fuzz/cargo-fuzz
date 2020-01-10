@@ -7,6 +7,7 @@ use std::path::{Path, PathBuf};
 use std::{
     env, ffi, fs,
     process::{Command, Stdio},
+    time,
 };
 
 pub struct FuzzProject {
@@ -234,7 +235,11 @@ impl FuzzProject {
         Ok(())
     }
 
-    fn get_artifact_paths(&self, target: &str) -> Result<HashSet<PathBuf>> {
+    fn get_artifacts_since(
+        &self,
+        target: &str,
+        since: &time::SystemTime,
+    ) -> Result<HashSet<PathBuf>> {
         let mut artifacts = HashSet::new();
 
         let artifacts_dir = self.artifacts_for(target)?;
@@ -252,7 +257,13 @@ impl FuzzProject {
                 )
             })?;
 
-            if !entry.file_type()?.is_file() {
+            let metadata = entry
+                .metadata()
+                .context("failed to read artifact metadata")?;
+            let modified = metadata
+                .modified()
+                .context("failed to get artifact modification time")?;
+            if !metadata.is_file() || modified <= *since {
                 continue;
             }
 
@@ -324,9 +335,11 @@ impl FuzzProject {
             cmd.arg(format!("-fork={}", run.jobs));
         }
 
-        // Create a set of all the existing artifacts. We want to filter these
-        // out from any new crashes/leaks/etc that we find .
-        let old_artifacts = self.get_artifact_paths(&run.target)?;
+        // When libfuzzer finds failing inputs, those inputs will end up in the
+        // artifacts directory. To easily filter old artifacts from new ones,
+        // get the current time, and then later we only consider files modified
+        // after now.
+        let before_fuzzing = time::SystemTime::now();
 
         let mut child = cmd
             .spawn()
@@ -341,19 +354,12 @@ impl FuzzProject {
         // Get and print the `Debug` formatting of any new artifacts, along with
         // tips about how to reproduce failures and/or minimize test cases.
 
-        let all_artifacts = self.get_artifact_paths(&run.target)?;
-        let new_artifacts: Vec<_> = all_artifacts
-            .into_iter()
-            .filter(|a| !old_artifacts.contains(a))
-            .collect();
+        let new_artifacts = self.get_artifacts_since(&run.target, &before_fuzzing)?;
 
         for artifact in new_artifacts {
             // To make the artifact a little easier to read, strip the current
             // directory prefix when possible.
-            let artifact = std::env::current_dir()
-                .ok()
-                .and_then(|curdir| artifact.strip_prefix(curdir).ok())
-                .unwrap_or(&artifact);
+            let artifact = strip_current_dir_prefix(&artifact);
 
             eprintln!("\n{:─<80}", "");
             eprintln!("\nFailing input:\n\n\t{}\n", artifact.display());
@@ -395,7 +401,7 @@ impl FuzzProject {
             .arg(format!("-runs={}", tmin.runs))
             .arg(&tmin.test_case);
 
-        let old_artifacts = self.get_artifact_paths(&tmin.target)?;
+        let before_tmin = time::SystemTime::now();
 
         let mut child = cmd
             .spawn()
@@ -422,24 +428,17 @@ impl FuzzProject {
         // presumably the result of minification. Yeah, this is a little hacky,
         // but it seems to work. I don't want to parse libfuzzer's stderr output
         // and hope it never changes.
-        let mut new_artifacts: Vec<_> = self
-            .get_artifact_paths(&tmin.target)?
+        let minimized_artifact = self
+            .get_artifacts_since(&tmin.target, &before_tmin)?
             .into_iter()
-            .filter(|a| !old_artifacts.contains(a))
-            .collect();
-        new_artifacts.sort_by_key(|p| {
-            p.metadata()
-                .and_then(|m| m.modified())
-                .unwrap_or(std::time::SystemTime::UNIX_EPOCH)
-        });
+            .max_by_key(|a| {
+                a.metadata()
+                    .and_then(|m| m.modified())
+                    .unwrap_or(time::SystemTime::UNIX_EPOCH)
+            });
 
-        if let Some(artifact) = new_artifacts.pop() {
-            // To make the artifact a little easier to read, strip the current
-            // directory prefix when possible.
-            let artifact = std::env::current_dir()
-                .ok()
-                .and_then(|curdir| artifact.strip_prefix(curdir).ok())
-                .unwrap_or(&artifact);
+        if let Some(artifact) = minimized_artifact {
+            let artifact = strip_current_dir_prefix(&artifact);
 
             eprintln!("\n{:─<80}\n", "");
             eprintln!("Minimized artifact:\n\n\t{}\n", artifact.display());
@@ -654,4 +653,11 @@ fn find_package() -> Result<PathBuf> {
         }
     }
     bail!("could not find a cargo project")
+}
+
+fn strip_current_dir_prefix(path: &Path) -> &Path {
+    env::current_dir()
+        .ok()
+        .and_then(|curdir| path.strip_prefix(curdir).ok())
+        .unwrap_or(&path)
 }
