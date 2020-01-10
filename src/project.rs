@@ -1,11 +1,12 @@
 use crate::options::{self, BuildOptions, Sanitizer};
 use anyhow::{anyhow, bail, Context, Result};
+use std::collections::HashSet;
 use std::io::Read;
 use std::io::Write;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::{
     env, ffi, fs,
-    process::{Command, ExitStatus},
+    process::{Command, ExitStatus, Stdio},
 };
 
 pub struct FuzzProject {
@@ -233,6 +234,75 @@ impl FuzzProject {
         Ok(())
     }
 
+    fn get_artifact_paths(&self, target: &str) -> Result<HashSet<PathBuf>> {
+        let mut artifacts = HashSet::new();
+
+        let artifacts_dir = self.artifacts_for(target)?;
+
+        for entry in fs::read_dir(&artifacts_dir).with_context(|| {
+            format!(
+                "failed to read directory entries of {}",
+                artifacts_dir.display()
+            )
+        })? {
+            let entry = entry.with_context(|| {
+                format!(
+                    "failed to read directory entry inside {}",
+                    artifacts_dir.display()
+                )
+            })?;
+
+            if !entry.file_type()?.is_file() {
+                continue;
+            }
+
+            artifacts.insert(entry.path());
+        }
+
+        Ok(artifacts)
+    }
+
+    fn run_fuzz_target_debug_formatter(
+        &self,
+        build: &BuildOptions,
+        target: &str,
+        artifact: &Path,
+    ) -> Result<String> {
+        let debug_output = tempfile::NamedTempFile::new().context("failed to create temp file")?;
+
+        let mut cmd = self.cargo_run(&build, &target)?;
+        cmd.stdin(Stdio::null());
+        cmd.env("RUST_LIBFUZZER_DEBUG_PATH", &debug_output.path());
+        cmd.arg(&artifact);
+
+        let output = cmd
+            .output()
+            .with_context(|| format!("failed to run command: {:?}", cmd))?;
+
+        if !output.status.success() {
+            bail!(
+                "Fuzz target '{target}' exited with failure when attemping to \
+                 debug formatting an interesting input that we discovered!\n\n\
+                 Artifact: {artifact}\n\n\
+                 Command: {cmd:?}\n\n\
+                 Status: {status}\n\n\
+                 === stdout ===\n\
+                 {stdout}\n\n\
+                 === stderr ===\n\
+                 {stderr}",
+                target = target,
+                status = output.status,
+                cmd = cmd,
+                artifact = artifact.display(),
+                stdout = String::from_utf8_lossy(&output.stdout),
+                stderr = String::from_utf8_lossy(&output.stderr),
+            );
+        }
+
+        let debug = fs::read_to_string(&debug_output).context("failed to read temp file")?;
+        Ok(debug)
+    }
+
     /// Fuzz a given fuzz target
     pub fn exec_fuzz(&self, run: &options::Run) -> Result<()> {
         self.exec_build(&run.build, Some(&run.target))?;
@@ -253,8 +323,69 @@ impl FuzzProject {
         if run.jobs != 1 {
             cmd.arg(format!("-fork={}", run.jobs));
         }
-        exec_cmd(&mut cmd).with_context(|| format!("could not execute command: {:?}", cmd))?;
-        Ok(())
+
+        // Create a set of all the existing artifacts. We want to filter these
+        // out from any new crashes/leaks/etc that we find .
+        let old_artifacts = self.get_artifact_paths(&run.target)?;
+
+        let mut child = cmd
+            .spawn()
+            .with_context(|| format!("failed to spawn command: {:?}", cmd))?;
+        let status = child
+            .wait()
+            .with_context(|| format!("failed to wait on child process for command: {:?}", cmd))?;
+        if status.success() {
+            return Ok(());
+        }
+
+        // Get and print the `Debug` formatting of any new artifacts, along with
+        // tips about how to reproduce failures and/or minimize test cases.
+
+        let all_artifacts = self.get_artifact_paths(&run.target)?;
+        let new_artifacts: Vec<_> = all_artifacts
+            .into_iter()
+            .filter(|a| !old_artifacts.contains(a))
+            .collect();
+
+        for artifact in new_artifacts {
+            // To make the artifact a little easier to read, strip the current
+            // directory prefix when possible.
+            let artifact = std::env::current_dir()
+                .ok()
+                .and_then(|curdir| artifact.strip_prefix(curdir).ok())
+                .unwrap_or(&artifact);
+
+            eprintln!("\n{:─<80}", "");
+            eprintln!("\nFailing input:\n\n\t{}\n", artifact.display());
+
+            // Note: ignore errors when running the debug formatter. This most
+            // likely just means that we're dealing with a fuzz target that uses
+            // an older version of the libfuzzer crate, and doesn't support
+            // `RUST_LIBFUZZER_DEBUG_PATH`.
+            if let Ok(debug) =
+                self.run_fuzz_target_debug_formatter(&run.build, &run.target, artifact)
+            {
+                eprintln!("Output of `std::fmt::Debug`:\n");
+                for l in debug.lines() {
+                    eprintln!("\t{}", l);
+                }
+                eprintln!();
+            }
+
+            eprintln!(
+                "Reproduce with:\n\n\tcargo fuzz run {target} {artifact}\n",
+                target = &run.target,
+                artifact = artifact.display()
+            );
+            eprintln!(
+                "Minimize test case with:\n\n\tcargo fuzz tmin {target} {artifact}\n",
+                target = &run.target,
+                artifact = artifact.display()
+            );
+        }
+
+        eprintln!("{:─<80}\n", "");
+        bail!("Fuzz target exited with {}", status)
     }
 
     pub fn exec_tmin(&self, tmin: &options::Tmin) -> Result<()> {
