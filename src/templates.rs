@@ -12,10 +12,11 @@ edition = "2018"
 [package.metadata]
 cargo-fuzz = true
 
+[dependencies]
+libfuzzer-sys = "0.2"
+
 [dependencies.{0}]
 path = ".."
-[dependencies.libfuzzer-sys]
-git = "https://github.com/rust-fuzz/libfuzzer-sys.git"
 
 # Prevent this from interfering with workspaces
 [workspace]
