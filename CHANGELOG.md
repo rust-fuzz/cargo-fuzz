@@ -30,12 +30,26 @@ Released YYYY-MM-DD.
 
 ## 0.7.0
 
-Released 2020-01-14.
+Released 2020-01-15.
+
+### Added
+
+* `cargo fuzz` will show you the `Debug` output of failing inputs. This is
+  particularly useful when you're using `Arbitrary` to create structured fuzz
+  inputs. This requires that your fuzz target is using `libfuzzer-sys >= 0.2.0`
+  from crates.io.
+* `cargo fuzz` will now suggest common next tasks after finding a failing
+  input. It gives you instructions on how to reproduce the failure, and how to
+  run test case minimization.
 
 ### Changed
 
-* New fuzz projects will use `libfuzzer-sys` from crates.io now, instead of a
-  git dependency.
+* New fuzz projects will use [`libfuzzer-sys` version
+  `0.2.0`](https://github.com/rust-fuzz/libfuzzer/blob/master/CHANGELOG.md#020)
+  from crates.io now, instead of a git dependency. This also pulls in
+  [`arbitrary` version
+  `0.3.0`](https://github.com/rust-fuzz/arbitrary/blob/master/CHANGELOG.md#030)
+  and all the new goodies it contains.
 
 --------------------------------------------------------------------------------
 
