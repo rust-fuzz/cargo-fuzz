@@ -28,6 +28,17 @@ Released YYYY-MM-DD.
 
 --------------------------------------------------------------------------------
 
+## 0.7.1
+
+Released 2020-01-15.
+
+### Changed
+
+* Updated `Cargo.lock` file's self version for `cargo-fuzz`, so that building
+  doesn't change the lock file.
+
+--------------------------------------------------------------------------------
+
 ## 0.7.0
 
 Released 2020-01-15.
