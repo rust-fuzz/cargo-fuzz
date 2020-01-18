@@ -91,4 +91,8 @@ pub struct BuildOptions {
     )]
     /// Target triple of the fuzz target
     pub triple: String,
+
+    #[structopt(short = "Z", value_name = "FLAG")]
+    /// Unstable (nightly-only) flags to Cargo
+    pub unstable_flags: Vec<String>,
 }
