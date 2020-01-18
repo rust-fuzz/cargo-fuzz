@@ -146,6 +146,9 @@ impl FuzzProject {
         if let Some(ref features) = build.features {
             cmd.arg("--features").arg(features);
         }
+        for flag in &build.unstable_flags {
+            cmd.arg("-Z").arg(flag);
+        }
 
         let mut rustflags: String = format!(
             "--cfg fuzzing \
