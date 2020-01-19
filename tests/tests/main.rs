@@ -240,6 +240,60 @@ fn run_with_crash() {
 }
 
 #[test]
+fn run_without_sanitizer_with_crash() {
+    let project = project("run_with_crash")
+        .with_fuzz()
+        .fuzz_target(
+            "yes_crash",
+            r#"
+                #![no_main]
+                use libfuzzer_sys::fuzz_target;
+
+                fuzz_target!(|data: &[u8]| {
+                    run_with_crash::fail_fuzzing(data);
+                });
+            "#,
+        )
+        .build();
+
+    project
+        .cargo_fuzz()
+        .arg("run")
+        .arg("yes_crash")
+        .arg("--")
+        .arg("-runs=1000")
+        .arg("-sanitizer=none")
+        .env("RUST_BACKTRACE", "1")
+        .assert()
+        .stderr(
+            predicate::str::contains("panicked at 'I'm afraid of number 7'")
+                .and(predicate::str::contains("ERROR: libFuzzer: deadly signal"))
+                .and(predicate::str::contains("run_with_crash::fail_fuzzing"))
+                .and(predicate::str::contains(
+                    "────────────────────────────────────────────────────────────────────────────────\n\
+                     \n\
+                     Failing input:\n\
+                     \n\
+                     \tfuzz/artifacts/yes_crash/crash-"
+                ))
+                // TODO: need to wait on enabling this until we release a new libfuzzer.
+                //
+                // .and(predicate::str::contains("Output of `std::fmt::Debug`:"))
+                .and(predicate::str::contains(
+                    "Reproduce with:\n\
+                     \n\
+                     \tcargo fuzz run yes_crash fuzz/artifacts/yes_crash/crash-"
+                ))
+                .and(predicate::str::contains(
+                    "Minimize test case with:\n\
+                     \n\
+                     \tcargo fuzz tmin yes_crash fuzz/artifacts/yes_crash/crash-"
+                )),
+        )
+        .failure();
+}
+
+#[test]
 fn run_one_input() {
     let corpus = Path::new("fuzz").join("corpus").join("run_one");
 
