@@ -222,9 +222,7 @@ fn run_with_crash() {
                      \n\
                      \tfuzz/artifacts/yes_crash/crash-"
                 ))
-                // TODO: need to wait on enabling this until we release a new libfuzzer.
-                //
-                // .and(predicate::str::contains("Output of `std::fmt::Debug`:"))
+                .and(predicate::str::contains("Output of `std::fmt::Debug`:"))
                 .and(predicate::str::contains(
                     "Reproduce with:\n\
                      \n\
@@ -241,7 +239,7 @@ fn run_with_crash() {
 
 #[test]
 fn run_without_sanitizer_with_crash() {
-    let project = project("run_with_crash")
+    let project = project("run_without_sanitizer_with_crash")
         .with_fuzz()
         .fuzz_target(
             "yes_crash",
@@ -250,7 +248,7 @@ fn run_without_sanitizer_with_crash() {
                 use libfuzzer_sys::fuzz_target;
 
                 fuzz_target!(|data: &[u8]| {
-                    run_with_crash::fail_fuzzing(data);
+                    run_without_sanitizer_with_crash::fail_fuzzing(data);
                 });
             "#,
         )
@@ -268,7 +266,7 @@ fn run_without_sanitizer_with_crash() {
         .stderr(
             predicate::str::contains("panicked at 'I'm afraid of number 7'")
                 .and(predicate::str::contains("ERROR: libFuzzer: deadly signal"))
-                .and(predicate::str::contains("run_with_crash::fail_fuzzing"))
+                .and(predicate::str::contains("run_without_sanitizer_with_crash::fail_fuzzing"))
                 .and(predicate::str::contains(
                     "────────────────────────────────────────────────────────────────────────────────\n\
                      \n\
@@ -276,9 +274,7 @@ fn run_without_sanitizer_with_crash() {
                      \n\
                      \tfuzz/artifacts/yes_crash/crash-"
                 ))
-                // TODO: need to wait on enabling this until we release a new libfuzzer.
-                //
-                // .and(predicate::str::contains("Output of `std::fmt::Debug`:"))
+                .and(predicate::str::contains("Output of `std::fmt::Debug`:"))
                 .and(predicate::str::contains(
                     "Reproduce with:\n\
                      \n\

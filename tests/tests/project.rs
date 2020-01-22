@@ -80,7 +80,7 @@ impl ProjectBuilder {
                     path = ".."
 
                     [dependencies.libfuzzer-sys]
-                    git = "https://github.com/rust-fuzz/libfuzzer-sys.git"
+                    version = "0.2.1"
                 "#,
                 name = self.project.name,
             ),
