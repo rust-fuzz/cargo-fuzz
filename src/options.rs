@@ -18,6 +18,7 @@ pub enum Sanitizer {
     Leak,
     Memory,
     Thread,
+    None,
 }
 
 impl fmt::Display for Sanitizer {
@@ -30,6 +31,7 @@ impl fmt::Display for Sanitizer {
                 Sanitizer::Leak => "leak",
                 Sanitizer::Memory => "memory",
                 Sanitizer::Thread => "thread",
+                Sanitizer::None => "",
             }
         )
     }
@@ -44,6 +46,7 @@ impl FromStr for Sanitizer {
             "leak" => Ok(Sanitizer::Leak),
             "memory" => Ok(Sanitizer::Memory),
             "thread" => Ok(Sanitizer::Thread),
+            "none" => Ok(Sanitizer::None),
             _ => Err(format!("unknown sanitizer: {}", s)),
         }
     }
@@ -78,7 +81,7 @@ pub struct BuildOptions {
     #[structopt(
         short = "s",
         long = "sanitizer",
-        possible_values(&["address", "leak", "memory", "thread"]),
+        possible_values(&["address", "leak", "memory", "thread", "none"]),
         default_value = "address",
     )]
     /// Use a specific sanitizer

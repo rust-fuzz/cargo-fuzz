@@ -150,19 +150,23 @@ impl FuzzProject {
             cmd.arg("-Z").arg(flag);
         }
 
-        let mut rustflags: String = format!(
-            "--cfg fuzzing \
-             -Cpasses=sancov \
-             -Cllvm-args=-sanitizer-coverage-level=4 \
-             -Cllvm-args=-sanitizer-coverage-trace-compares \
-             -Cllvm-args=-sanitizer-coverage-inline-8bit-counters \
-             -Cllvm-args=-sanitizer-coverage-trace-geps \
-             -Cllvm-args=-sanitizer-coverage-prune-blocks=0 \
-             -Cllvm-args=-sanitizer-coverage-pc-table \
-             -Clink-dead-code \
-             -Zsanitizer={sanitizer}",
-            sanitizer = build.sanitizer,
-        );
+        let mut rustflags: String = "--cfg fuzzing \
+                                     -Cpasses=sancov \
+                                     -Cllvm-args=-sanitizer-coverage-level=4 \
+                                     -Cllvm-args=-sanitizer-coverage-trace-compares \
+                                     -Cllvm-args=-sanitizer-coverage-inline-8bit-counters \
+                                     -Cllvm-args=-sanitizer-coverage-trace-geps \
+                                     -Cllvm-args=-sanitizer-coverage-prune-blocks=0 \
+                                     -Cllvm-args=-sanitizer-coverage-pc-table \
+                                     -Clink-dead-code"
+            .to_owned();
+        match build.sanitizer {
+            Sanitizer::None => {}
+            _ => rustflags.push_str(&format!(
+                " -Zsanitizer={sanitizer}",
+                sanitizer = build.sanitizer
+            )),
+        }
         if build.triple.contains("-linux-") {
             rustflags.push_str(" -Cllvm-args=-sanitizer-coverage-stack-depth");
         }
