@@ -80,7 +80,7 @@ impl ProjectBuilder {
                     path = ".."
 
                     [dependencies.libfuzzer-sys]
-                    version = "0.2.1"
+                    version = "0.3.0"
                 "#,
                 name = self.project.name,
             ),
