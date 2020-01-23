@@ -13,7 +13,7 @@ edition = "2018"
 cargo-fuzz = true
 
 [dependencies]
-libfuzzer-sys = "0.2"
+libfuzzer-sys = "0.3"
 
 [dependencies.{0}]
 path = ".."
