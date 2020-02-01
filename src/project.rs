@@ -174,6 +174,18 @@ impl FuzzProject {
             rustflags.push_str(" -Cdebug-assertions");
         }
 
+        // If release mode is enabled then we force 1 CGU to be used in rustc.
+        // This will result in slower compilations but it looks like the sancov
+        // passes otherwise add `notEligibleToImport` annotations to functions
+        // in LLVM IR, meaning that *nothing* can get imported with ThinLTO.
+        // This means that in release mode, where ThinLTO is critical for
+        // performance, we're taking a huge hit relative to actual release mode.
+        // Local tests have once showed this to be a ~3x faster runtime where
+        // otherwise functions like `Vec::as_ptr` aren't inlined.
+        if build.release {
+            rustflags.push_str(" -C codegen-units=1");
+        }
+
         if let Ok(other_flags) = env::var("RUSTFLAGS") {
             rustflags.push_str(" ");
             rustflags.push_str(&other_flags);
