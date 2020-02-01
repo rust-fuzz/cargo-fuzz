@@ -28,6 +28,16 @@ Released YYYY-MM-DD.
 
 --------------------------------------------------------------------------------
 
+## 0.7.3
+
+Released 2020-02-01.
+
+### Changed
+
+* [Force 1 CGU when release mode is enabled](https://github.com/rust-fuzz/cargo-fuzz/pull/215)
+
+--------------------------------------------------------------------------------
+
 ## 0.7.2
 
 Released 2020-01-22.
