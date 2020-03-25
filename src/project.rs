@@ -334,18 +334,20 @@ impl FuzzProject {
     }
 
     /// Prints the debug output of an input test case
-    pub fn debug_fmt_input(&self, debugfmt: &options::DebugFmt) -> Result<()> {
+    pub fn debug_fmt_input(&self, debugfmt: &options::Fmt) -> Result<()> {
         if !debugfmt.input.exists() {
             bail!("Input test case does not exist.");
         }
-
+        
         if let Ok(debug) =
             self.run_fuzz_target_debug_formatter(&debugfmt.build, &debugfmt.target, &debugfmt.input)
         {
             eprintln!("Output of `std::fmt::Debug`:\n");
             for l in debug.lines() {
-                eprintln!("\t{}", l);
+                eprintln!("{}", l);
             }
+        } else {
+            bail!("Unable to return debug-formatted output for input test case.")
         }
         Ok(())
     }

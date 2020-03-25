@@ -98,7 +98,7 @@ enum Command {
     Build(options::Build),
 
     /// Print debugging output for fuzz inputs
-    DebugFmt(options::DebugFmt),
+    Fmt(options::Fmt),
 
     /// List all the existing fuzz targets
     List(options::List),
@@ -125,7 +125,7 @@ impl RunCommand for Command {
             Command::Add(x) => x.run_command(),
             Command::Build(x) => x.run_command(),
             Command::List(x) => x.run_command(),
-            Command::DebugFmt(x) => x.run_command(),
+            Command::Fmt(x) => x.run_command(),
             Command::Run(x) => x.run_command(),
             Command::Cmin(x) => x.run_command(),
             Command::Tmin(x) => x.run_command(),

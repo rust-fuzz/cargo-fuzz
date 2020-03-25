@@ -5,7 +5,7 @@ use structopt::StructOpt;
 use std::path::PathBuf;
 
 #[derive(Clone, Debug, StructOpt)]
-pub struct DebugFmt {
+pub struct Fmt {
     #[structopt(flatten)]
     pub build: BuildOptions,
 
@@ -18,7 +18,7 @@ pub struct DebugFmt {
     pub input: PathBuf,
 }
 
-impl RunCommand for DebugFmt {
+impl RunCommand for Fmt {
     fn run_command(&mut self) -> Result<()> {
         let project = FuzzProject::find_existing()?;
         project.debug_fmt_input(self)

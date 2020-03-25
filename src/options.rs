@@ -1,18 +1,17 @@
 mod add;
 mod build;
 mod cmin;
-mod debugfmt;
+mod fmt;
 mod init;
 mod list;
 mod run;
 mod tmin;
 
 pub use self::{
-    add::Add, build::Build, cmin::Cmin, debugfmt::DebugFmt, init::Init, list::List, run::Run,
-    tmin::Tmin,
+    add::Add, build::Build, cmin::Cmin, fmt::Fmt, init::Init, list::List, run::Run, tmin::Tmin,
 };
 
-use std::fmt;
+use std::fmt as stdfmt;
 use std::str::FromStr;
 use structopt::StructOpt;
 
@@ -25,8 +24,8 @@ pub enum Sanitizer {
     None,
 }
 
-impl fmt::Display for Sanitizer {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+impl stdfmt::Display for Sanitizer {
+    fn fmt(&self, f: &mut stdfmt::Formatter) -> stdfmt::Result {
         write!(
             f,
             "{}",
