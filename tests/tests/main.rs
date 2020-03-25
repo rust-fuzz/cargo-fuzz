@@ -409,6 +409,62 @@ fn run_alt_corpus() {
 }
 
 #[test]
+fn debug_fmt() {
+    let corpus = Path::new("fuzz").join("corpus").join("debugfmt");
+    let project = project("debugfmt")
+        .with_fuzz()
+        .fuzz_target(
+            "debugfmt",
+            r#"
+                #![no_main]
+                use libfuzzer_sys::fuzz_target;
+                use libfuzzer_sys::arbitrary::{Arbitrary, Unstructured, Result};
+
+                #[derive(Debug)]
+                pub struct Rgb {
+                    r: u8,
+                    g: u8,
+                    b: u8,
+                }
+
+                impl Arbitrary for Rgb
+                {
+                    fn arbitrary(raw: &mut Unstructured<'_>) -> Result<Self> {
+                        let mut buf = [0; 3];
+                        raw.fill_buffer(&mut buf)?;
+                        let r = buf[0];
+                        let g = buf[1];
+                        let b = buf[2];
+                        Ok(Rgb { r, g, b })
+                    }
+                }
+
+                fuzz_target!(|data: Rgb| {
+                    let _ = data;
+                });
+            "#,
+        )
+        .file(corpus.join("0"), "111")
+        .build();
+
+    project
+        .cargo_fuzz()
+        .arg("fmt")
+        .arg("debugfmt")
+        .arg("fuzz/corpus/debugfmt/0")
+        .assert()
+        .stderr(predicates::str::contains(
+            "
+Rgb {
+    r: 49,
+    g: 49,
+    b: 49,
+}",
+        ))
+        .success();
+}
+
+#[test]
 fn cmin() {
     let corpus = Path::new("fuzz").join("corpus").join("foo");
     let project = project("cmin")

@@ -338,7 +338,7 @@ impl FuzzProject {
         if !debugfmt.input.exists() {
             bail!("Input test case does not exist.");
         }
-        
+
         if let Ok(debug) =
             self.run_fuzz_target_debug_formatter(&debugfmt.build, &debugfmt.target, &debugfmt.input)
         {
