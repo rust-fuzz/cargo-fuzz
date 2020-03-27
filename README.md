@@ -39,6 +39,10 @@ Create a new fuzzing target!
 
 Run a fuzzing target and find bugs!
 
+### `cargo fuzz fmt <target> <input>`
+
+Print debug output for an input test case!
+
 ### `cargo fuzz tmin <target> <input>`
 
 Found a failing input? Minify it to the smallest input that causes that failure
