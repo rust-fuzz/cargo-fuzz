@@ -41,7 +41,8 @@ Run a fuzzing target and find bugs!
 
 ### `cargo fuzz fmt <target> <input>`
 
-Print debug output for an input test case!
+Print the `std::fmt::Debug` output for a test case. Useful when your fuzz target
+takes an `Arbitrary` input!
 
 ### `cargo fuzz tmin <target> <input>`
 
