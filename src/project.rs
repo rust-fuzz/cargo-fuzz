@@ -333,6 +333,32 @@ impl FuzzProject {
         Ok(debug)
     }
 
+    /// Prints the debug output of an input test case
+    pub fn debug_fmt_input(&self, debugfmt: &options::Fmt) -> Result<()> {
+        if !debugfmt.input.exists() {
+            bail!(
+                "Input test case does not exist: {}",
+                debugfmt.input.display()
+            );
+        }
+
+        let debug = self
+            .run_fuzz_target_debug_formatter(&debugfmt.build, &debugfmt.target, &debugfmt.input)
+            .with_context(|| {
+                format!(
+                    "failed to run `cargo fuzz fmt` on input: {}",
+                    debugfmt.input.display()
+                )
+            })?;
+
+        eprintln!("\nOutput of `std::fmt::Debug`:\n");
+        for l in debug.lines() {
+            eprintln!("{}", l);
+        }
+
+        Ok(())
+    }
+
     /// Fuzz a given fuzz target
     pub fn exec_fuzz(&self, run: &options::Run) -> Result<()> {
         self.exec_build(&run.build, Some(&run.target))?;
