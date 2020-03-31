@@ -28,6 +28,18 @@ Released YYYY-MM-DD.
 
 --------------------------------------------------------------------------------
 
+## 0.7.4
+
+Released 2020-03-31.
+
+### Added
+
+* Added the `cargo fuzz fmt <target> <input>` subcommand. This prints the
+  `std::fmt::Debug` output of the input. This is especially useful when the fuzz
+  target takes an `Arbitrary` input type.
+
+--------------------------------------------------------------------------------
+
 ## 0.7.3
 
 Released 2020-02-01.
