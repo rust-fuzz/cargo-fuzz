@@ -97,7 +97,7 @@ enum Command {
     /// Build fuzz targets
     Build(options::Build),
 
-    /// Print debugging output for fuzz inputs
+    /// Print the `std::fmt::Debug` output for an input
     Fmt(options::Fmt),
 
     /// List all the existing fuzz targets
