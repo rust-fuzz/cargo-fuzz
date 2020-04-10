@@ -61,6 +61,10 @@ pub struct BuildOptions {
     /// Build artifacts in release mode, with optimizations
     pub release: bool,
 
+    /// Build target with verbose output from `cargo build`
+    #[structopt(short = "v", long = "verbose")]
+    pub verbose: bool,
+
     #[structopt(short = "a", long = "debug-assertions")]
     /// Build artifacts with debug assertions enabled (default if not -O)
     pub debug_assertions: bool,
