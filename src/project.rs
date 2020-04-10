@@ -130,12 +130,14 @@ impl FuzzProject {
         cmd.arg(subcommand)
             .arg("--manifest-path")
             .arg(self.manifest_path())
-            .arg("--verbose")
             // --target=<TARGET> won't pass rustflags to build scripts
             .arg("--target")
             .arg(&build.triple);
         if build.release {
             cmd.arg("--release");
+        }
+        if build.verbose {
+            cmd.arg("--verbose");
         }
         if build.no_default_features {
             cmd.arg("--no-default-features");
