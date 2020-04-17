@@ -101,6 +101,8 @@ impl ProjectBuilder {
                 [[bin]]
                 name = "{name}"
                 path = "{path}"
+                test = false
+                doc = false
             "#,
             name = name,
             path = path.display(),
