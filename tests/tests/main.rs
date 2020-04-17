@@ -108,6 +108,12 @@ fn add() {
         .assert()
         .success();
     assert!(project.fuzz_target_path("new_fuzz_target").is_file());
+
+    assert!(project.fuzz_cargo_toml().is_file());
+    let cargo_toml = fs::read_to_string(project.fuzz_cargo_toml()).unwrap();
+    let expected_bin_attrs = "test = false\ndoc = false";
+    assert!(cargo_toml.contains(expected_bin_attrs));
+
     project
         .cargo_fuzz()
         .arg("run")

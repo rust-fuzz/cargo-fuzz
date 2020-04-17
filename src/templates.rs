@@ -34,6 +34,8 @@ macro_rules! toml_bin_template {
 [[bin]]
 name = "{0}"
 path = "fuzz_targets/{0}.rs"
+test = false
+doc = false
 "#,
             $name
         )
