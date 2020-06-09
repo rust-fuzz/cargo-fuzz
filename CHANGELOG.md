@@ -28,6 +28,27 @@ Released YYYY-MM-DD.
 
 --------------------------------------------------------------------------------
 
+## 0.7.5
+
+Released 2020-06-09.
+
+### Added
+
+* Added a `-v`/`--verbose` flag for enabling verbose cargo builds. This was
+  always implicitly enabled before, but now is optional.
+* New fuzz targets are now configured not to be tested or documented when you
+  run `cargo test --all` and `cargo doc --all` and the fuzz crate is a part of a
+  workspace. Previously, this caused `cargo` to accidentally start running the
+  fuzzers.
+
+### Changed
+
+* The `-sanitizer-coverage-trace-geps` and `-sanitizer-coverage-prune-blocks=0`
+  flags are not passed to LLVM anymore, as they created a lot of overhead for
+  fuzz targets, without actually guiding fuzzing much.
+
+--------------------------------------------------------------------------------
+
 ## 0.7.4
 
 Released 2020-03-31.

@@ -1,6 +1,6 @@
 [package]
 name = "cargo-fuzz"
-version = "0.7.4"
+version = "0.7.5"
 authors = ["The rust-fuzz Project Developers"]
 license = "MIT OR Apache-2.0"
 description = "A `cargo` subcommand for using `libFuzzer`! Easy to use! No need to recompile LLVM!"
