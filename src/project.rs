@@ -157,8 +157,6 @@ impl FuzzProject {
                                      -Cllvm-args=-sanitizer-coverage-level=4 \
                                      -Cllvm-args=-sanitizer-coverage-trace-compares \
                                      -Cllvm-args=-sanitizer-coverage-inline-8bit-counters \
-                                     -Cllvm-args=-sanitizer-coverage-trace-geps \
-                                     -Cllvm-args=-sanitizer-coverage-prune-blocks=0 \
                                      -Cllvm-args=-sanitizer-coverage-pc-table \
                                      -Clink-dead-code"
             .to_owned();
