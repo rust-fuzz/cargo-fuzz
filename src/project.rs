@@ -133,7 +133,8 @@ impl FuzzProject {
             // --target=<TARGET> won't pass rustflags to build scripts
             .arg("--target")
             .arg(&build.triple);
-        if build.release {
+        // we default to release mode unless debug mode is explicitly requested
+        if ! build.debug {
             cmd.arg("--release");
         }
         if build.verbose {
@@ -170,8 +171,11 @@ impl FuzzProject {
         if build.triple.contains("-linux-") {
             rustflags.push_str(" -Cllvm-args=-sanitizer-coverage-stack-depth");
         }
-        if build.debug_assertions {
+        if !build.debug || build.debug_assertions {
             rustflags.push_str(" -Cdebug-assertions");
+        }
+        if !build.debug || build.overflow_checks {
+            rustflags.push_str(" -Coverflow_checks");
         }
 
         // If release mode is enabled then we force 1 CGU to be used in rustc.
@@ -182,7 +186,7 @@ impl FuzzProject {
         // performance, we're taking a huge hit relative to actual release mode.
         // Local tests have once showed this to be a ~3x faster runtime where
         // otherwise functions like `Vec::as_ptr` aren't inlined.
-        if build.release {
+        if ! build.debug {
             rustflags.push_str(" -C codegen-units=1");
         }
 
