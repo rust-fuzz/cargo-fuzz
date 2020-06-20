@@ -57,17 +57,25 @@ impl FromStr for Sanitizer {
 
 #[derive(Clone, Debug, StructOpt)]
 pub struct BuildOptions {
-    #[structopt(short = "O", long = "release")]
+    #[structopt(short = "D", long = "debug", conflicts_with = "release")]
+    /// Build artifacts in debug mode, without optimizations
+    pub debug: bool,
+
+    #[structopt(short = "O", long = "release", conflicts_with = "debug")]
     /// Build artifacts in release mode, with optimizations
     pub release: bool,
-
-    /// Build target with verbose output from `cargo build`
-    #[structopt(short = "v", long = "verbose")]
-    pub verbose: bool,
 
     #[structopt(short = "a", long = "debug-assertions")]
     /// Build artifacts with debug assertions enabled (default if not -O)
     pub debug_assertions: bool,
+
+    #[structopt(short = "o", long = "overflow-checks")]
+    /// Build artifacts with overflow checks enabled (default if not -O)
+    pub overflow_checks: bool,
+
+    /// Build target with verbose output from `cargo build`
+    #[structopt(short = "v", long = "verbose")]
+    pub verbose: bool,
 
     #[structopt(long = "no-default-features")]
     /// Build artifacts with default Cargo features disabled
