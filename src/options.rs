@@ -69,10 +69,6 @@ pub struct BuildOptions {
     /// Build artifacts with debug assertions enabled (default if not -O)
     pub debug_assertions: bool,
 
-    #[structopt(short = "o", long = "overflow-checks")]
-    /// Build artifacts with overflow checks enabled (default if not -O)
-    pub overflow_checks: bool,
-
     /// Build target with verbose output from `cargo build`
     #[structopt(short = "v", long = "verbose")]
     pub verbose: bool,

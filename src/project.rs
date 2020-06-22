@@ -174,9 +174,6 @@ impl FuzzProject {
         if !build.dev || build.debug_assertions {
             rustflags.push_str(" -Cdebug-assertions");
         }
-        if !build.dev || build.overflow_checks {
-            rustflags.push_str(" -Coverflow_checks");
-        }
 
         // If release mode is enabled then we force 1 CGU to be used in rustc.
         // This will result in slower compilations but it looks like the sancov
