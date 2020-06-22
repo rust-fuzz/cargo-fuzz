@@ -57,9 +57,9 @@ impl FromStr for Sanitizer {
 
 #[derive(Clone, Debug, StructOpt)]
 pub struct BuildOptions {
-    #[structopt(short = "D", long = "debug", conflicts_with = "release")]
-    /// Build artifacts in debug mode, without optimizations
-    pub debug: bool,
+    #[structopt(short = "D", long = "dev", conflicts_with = "release")]
+    /// Build artifacts in development mode, without optimizations
+    pub dev: bool,
 
     #[structopt(short = "O", long = "release", conflicts_with = "debug")]
     /// Build artifacts in release mode, with optimizations
