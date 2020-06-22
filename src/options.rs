@@ -66,7 +66,7 @@ pub struct BuildOptions {
     pub release: bool,
 
     #[structopt(short = "a", long = "debug-assertions")]
-    /// Build artifacts with debug assertions enabled (default if not -O)
+    /// Build artifacts with debug assertions and overflow checks enabled (default if not -O)
     pub debug_assertions: bool,
 
     /// Build target with verbose output from `cargo build`
