@@ -578,7 +578,7 @@ fn build_all() {
     // `fuzz_build_dir()` won't panic.
     project.cargo_fuzz().arg("build").assert().success();
 
-    let build_dir = project.fuzz_build_dir().join("debug");
+    let build_dir = project.fuzz_build_dir().join("release");
 
     let a_bin = build_dir.join("build_all_a");
     let b_bin = build_dir.join("build_all_b");
@@ -619,7 +619,7 @@ fn build_one() {
     // `fuzz_build_dir()` won't panic.
     project.cargo_fuzz().arg("build").assert().success();
 
-    let build_dir = project.fuzz_build_dir().join("debug");
+    let build_dir = project.fuzz_build_dir().join("release");
     let a_bin = build_dir.join("build_one_a");
     let b_bin = build_dir.join("build_one_b");
 
