@@ -61,7 +61,7 @@ pub struct BuildOptions {
     /// Build artifacts in development mode, without optimizations
     pub dev: bool,
 
-    #[structopt(short = "O", long = "release", conflicts_with = "debug")]
+    #[structopt(short = "O", long = "release", conflicts_with = "dev")]
     /// Build artifacts in release mode, with optimizations
     pub release: bool,
 
