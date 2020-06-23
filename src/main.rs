@@ -40,7 +40,11 @@ fuzz/fuzz_targets/, i.e. the name picked when running `cargo fuzz add`.
 This will run the script inside the fuzz target with varying inputs until it
 finds a crash, at which point it will save the crash input to the artifact
 directory, print some output, and exit. Unless you configure it otherwise (see
-libFuzzer options below), this will run indefinitely.";
+libFuzzer options below), this will run indefinitely.
+
+By default fuzz targets are built with optimizations equivalent to
+`cargo build --release`, but with debug assertions and overflow checks enabled.
+Address Sanitizer is also enabled by default.";
 
 const RUN_AFTER_HELP: &'static str = "\
 
@@ -66,6 +70,17 @@ include:
 
   * `-dict=<file>`: Use a keyword dictionary from specified file. See
     http://llvm.org/docs/LibFuzzer.html#dictionaries\
+";
+
+const BUILD_BEFORE_HELP: &'static str = "\
+By default fuzz targets are built with optimizations equivalent to
+`cargo build --release`, but with debug assertions and overflow checks enabled.
+Address Sanitizer is also enabled by default.";
+
+const BUILD_AFTER_HELP: &'static str = "\
+Sanitizers perform checks necessary for detecting bugs in unsafe code
+at the cost of some performance. For more information on sanitizers see
+https://doc.rust-lang.org/unstable-book/compiler-flags/sanitizer.html\
 ";
 
 /// A trait for running our various commands.
@@ -94,6 +109,11 @@ enum Command {
     /// Add a new fuzz target
     Add(options::Add),
 
+    #[structopt(
+        template(LONG_ABOUT_TEMPLATE),
+        before_help(BUILD_BEFORE_HELP),
+        after_help(BUILD_AFTER_HELP)
+    )]
     /// Build fuzz targets
     Build(options::Build),
 
