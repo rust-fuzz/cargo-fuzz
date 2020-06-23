@@ -151,6 +151,9 @@ impl FuzzProject {
         for flag in &build.unstable_flags {
             cmd.arg("-Z").arg(flag);
         }
+        if let Sanitizer::Memory = build.sanitizer {
+            cmd.arg("-Z").arg("build-std");
+        }
 
         let mut rustflags: String = "--cfg fuzzing \
                                      -Cpasses=sancov \
@@ -162,6 +165,9 @@ impl FuzzProject {
             .to_owned();
         match build.sanitizer {
             Sanitizer::None => {}
+            Sanitizer::Memory => {
+                rustflags.push_str(" -Zsanitizer=memory -Zsanitizer-memory-track-origins")
+            }
             _ => rustflags.push_str(&format!(
                 " -Zsanitizer={sanitizer}",
                 sanitizer = build.sanitizer
