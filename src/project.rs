@@ -171,7 +171,7 @@ impl FuzzProject {
         if build.triple.contains("-linux-") {
             rustflags.push_str(" -Cllvm-args=-sanitizer-coverage-stack-depth");
         }
-        if build.debug_assertions {
+        if !build.release || build.debug_assertions {
             rustflags.push_str(" -Cdebug-assertions");
         }
 
