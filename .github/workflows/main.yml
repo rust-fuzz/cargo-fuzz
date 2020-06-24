@@ -16,5 +16,6 @@ jobs:
       run: |
         rustup install nightly
         rustup default nightly
+        rustup component add rust-src
         export RUST_BACKTRACE=1
         cargo test --verbose
