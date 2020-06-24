@@ -306,10 +306,12 @@ fn run_with_msan_no_crash() {
                 use libfuzzer_sys::fuzz_target;
 
                 fuzz_target!(|data: &[u8]| {
-                    let test_data = vec![0,1,2,3];
-                    let accessed_value = test_data[0];
-                    // prevent the read from being optimized out
-                    println!("{}", accessed_value);
+                    // get data from fuzzer and print it
+                    // to force a memory access that cannot be optimized out
+                    let test_data = data.to_owned();
+                    if let Some(x) = data.get(0) {
+                        dbg!(x);
+                    }
                 });
             "#,
         )
