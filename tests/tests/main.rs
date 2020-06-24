@@ -308,7 +308,6 @@ fn run_with_msan_no_crash() {
                 fuzz_target!(|data: &[u8]| {
                     // get data from fuzzer and print it
                     // to force a memory access that cannot be optimized out
-                    let test_data = data.to_owned();
                     if let Some(x) = data.get(0) {
                         dbg!(x);
                     }
