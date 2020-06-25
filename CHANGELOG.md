@@ -28,6 +28,29 @@ Released YYYY-MM-DD.
 
 --------------------------------------------------------------------------------
 
+## 0.8.0
+
+Released 2020-06-25.
+
+### Changed
+
+* `cargo fuzz build` and `cargo fuzz run` default to building with optimizations
+  *and* debug assertions by default now. This is the most common configuration
+  for running fuzzers, so we've made it the default. To build without
+  optimizations, use the `--dev` flag, which enables Cargo's development
+  profile. To build without debug assertions, use the `--release` flag, which
+  enables Cargo's release profile.
+
+### Fixed
+
+* Building with [memory
+  sanitizer](https://clang.llvm.org/docs/MemorySanitizer.html) via the
+  `--sanitizer=memory` flag works correctly now! Previously, we did not rebuild
+  `std` with memory sanitizer enabled, and so programs compiled with memory
+  sanitizer would immediately segfault in practice.
+
+--------------------------------------------------------------------------------
+
 ## 0.7.6
 
 Released 2020-06-09.

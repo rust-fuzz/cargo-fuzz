@@ -56,7 +56,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 
 [[package]]
 name = "cargo-fuzz"
-version = "0.7.6"
+version = "0.8.0"
 dependencies = [
  "anyhow 1.0.31 (registry+https://github.com/rust-lang/crates.io-index)",
  "assert_cmd 0.12.2 (registry+https://github.com/rust-lang/crates.io-index)",
