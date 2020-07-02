@@ -55,7 +55,7 @@ impl FromStr for Sanitizer {
     }
 }
 
-#[derive(Clone, Debug, StructOpt)]
+#[derive(Clone, Debug, StructOpt, PartialEq)]
 pub struct BuildOptions {
     #[structopt(short = "D", long = "dev", conflicts_with = "release")]
     /// Build artifacts in development mode, without optimizations
@@ -138,21 +138,97 @@ impl stdfmt::Display for BuildOptions {
         }
 
         if let Some(feature) = &self.features {
-            write!(f, " --feature={}", feature)?;
+            write!(f, " --features={}", feature)?;
         }
 
-        if self.sanitizer != Sanitizer::None {
-            write!(f, " --sanitizer={}", self.sanitizer)?;
+        match self.sanitizer {
+            Sanitizer::None => write!(f, " --sanitizer=none")?,
+            Sanitizer::Address => {}
+            _ => write!(f, " --sanitizer={}", self.sanitizer)?,
         }
 
         if self.triple != crate::utils::default_target() {
             write!(f, " --target={}", self.triple)?;
         }
 
-        if !self.unstable_flags.is_empty() {
-            write!(f, " -Z '{}'", self.unstable_flags.join(" "))?;
+        for flag in &self.unstable_flags {
+            write!(f, " -Z{}", flag)?;
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn display_build_options() {
+        let default_opts = BuildOptions {
+            dev: false,
+            release: false,
+            debug_assertions: false,
+            verbose: false,
+            no_default_features: false,
+            all_features: false,
+            features: None,
+            sanitizer: Sanitizer::Address,
+            triple: String::from(crate::utils::default_target()),
+            unstable_flags: Vec::new(),
+        };
+
+        let opts = vec![
+            default_opts.clone(),
+            BuildOptions {
+                dev: true,
+                ..default_opts.clone()
+            },
+            BuildOptions {
+                release: true,
+                ..default_opts.clone()
+            },
+            BuildOptions {
+                debug_assertions: true,
+                ..default_opts.clone()
+            },
+            BuildOptions {
+                verbose: true,
+                ..default_opts.clone()
+            },
+            BuildOptions {
+                no_default_features: true,
+                ..default_opts.clone()
+            },
+            BuildOptions {
+                all_features: true,
+                ..default_opts.clone()
+            },
+            BuildOptions {
+                features: Some(String::from("features")),
+                ..default_opts.clone()
+            },
+            BuildOptions {
+                sanitizer: Sanitizer::None,
+                ..default_opts.clone()
+            },
+            BuildOptions {
+                triple: String::from("custom_triple"),
+                ..default_opts.clone()
+            },
+            BuildOptions {
+                unstable_flags: vec![String::from("unstable"), String::from("flags")],
+                ..default_opts
+            },
+        ];
+
+        for case in opts {
+            assert_eq!(
+                case,
+                BuildOptions::from_clap(
+                    &BuildOptions::clap().get_matches_from(case.to_string().split(' '))
+                )
+            );
+        }
     }
 }
