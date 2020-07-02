@@ -433,12 +433,14 @@ impl FuzzProject {
             }
 
             eprintln!(
-                "Reproduce with:\n\n\tcargo fuzz run {target} {artifact}\n",
+                "Reproduce with:\n\n\tcargo fuzz run{options} {target} {artifact}\n",
+                options = &run.build,
                 target = &run.target,
                 artifact = artifact.display()
             );
             eprintln!(
-                "Minimize test case with:\n\n\tcargo fuzz tmin {target} {artifact}\n",
+                "Minimize test case with:\n\n\tcargo fuzz tmin{options} {target} {artifact}\n",
+                options = &run.build,
                 target = &run.target,
                 artifact = artifact.display()
             );

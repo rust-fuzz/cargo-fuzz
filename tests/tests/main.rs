@@ -361,12 +361,12 @@ fn run_with_msan_with_crash() {
                 .and(predicate::str::contains(
                     "Reproduce with:\n\
                 \n\
-                \tcargo fuzz run --sanitizer-memory fuzz/artifacts/msan_with_crash/crash-",
+                \tcargo fuzz run --sanitizer=memory msan_with_crash fuzz/artifacts/msan_with_crash/crash-",
                 ))
                 .and(predicate::str::contains(
                     "Minimize test case with:\n\
                 \n\
-                \tcargo fuzz tmin --sanitizer-memory fuzz/artifacts/msan_with_crash/crash-",
+                \tcargo fuzz tmin --sanitizer=memory msan_with_crash fuzz/artifacts/msan_with_crash/crash-",
                 )),
         )
         .failure();

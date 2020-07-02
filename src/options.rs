@@ -15,7 +15,7 @@ use std::fmt as stdfmt;
 use std::str::FromStr;
 use structopt::StructOpt;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Sanitizer {
     Address,
     Leak,
@@ -109,4 +109,50 @@ pub struct BuildOptions {
     #[structopt(short = "Z", value_name = "FLAG")]
     /// Unstable (nightly-only) flags to Cargo
     pub unstable_flags: Vec<String>,
+}
+
+impl stdfmt::Display for BuildOptions {
+    fn fmt(&self, f: &mut stdfmt::Formatter) -> stdfmt::Result {
+        if self.dev {
+            write!(f, " -D")?;
+        }
+
+        if self.release {
+            write!(f, " -O")?;
+        }
+
+        if self.debug_assertions {
+            write!(f, " -a")?;
+        }
+
+        if self.verbose {
+            write!(f, " -v")?;
+        }
+
+        if self.no_default_features {
+            write!(f, " --no-default-features")?;
+        }
+
+        if self.all_features {
+            write!(f, " --all-features")?;
+        }
+
+        if let Some(feature) = &self.features {
+            write!(f, " --feature={}", feature)?;
+        }
+
+        if self.sanitizer != Sanitizer::None {
+            write!(f, " --sanitizer={}", self.sanitizer)?;
+        }
+
+        if self.triple != crate::utils::default_target() {
+            write!(f, " --target={}", self.triple)?;
+        }
+
+        if !self.unstable_flags.is_empty() {
+            write!(f, " -Z '{}'", self.unstable_flags.join(" "))?;
+        }
+
+        Ok(())
+    }
 }
