@@ -356,9 +356,19 @@ fn run_with_msan_with_crash() {
         .arg("--")
         .arg("-runs=1000")
         .assert()
-        .stderr(predicate::str::contains(
-            "MemorySanitizer: use-of-uninitialized-value",
-        ))
+        .stderr(
+            predicate::str::contains("MemorySanitizer: use-of-uninitialized-value")
+                .and(predicate::str::contains(
+                    "Reproduce with:\n\
+                \n\
+                \tcargo fuzz run --sanitizer=memory msan_with_crash fuzz/artifacts/msan_with_crash/crash-",
+                ))
+                .and(predicate::str::contains(
+                    "Minimize test case with:\n\
+                \n\
+                \tcargo fuzz tmin --sanitizer=memory msan_with_crash fuzz/artifacts/msan_with_crash/crash-",
+                )),
+        )
         .failure();
 }
 
