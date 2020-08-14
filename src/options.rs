@@ -109,6 +109,10 @@ pub struct BuildOptions {
     #[structopt(short = "Z", value_name = "FLAG")]
     /// Unstable (nightly-only) flags to Cargo
     pub unstable_flags: Vec<String>,
+
+    #[structopt(long = "target-dir")]
+    /// Target dir option to pass to cargo build.
+    pub target_dir: Option<String>,
 }
 
 impl stdfmt::Display for BuildOptions {
@@ -155,6 +159,10 @@ impl stdfmt::Display for BuildOptions {
             write!(f, " -Z{}", flag)?;
         }
 
+        if let Some(target_dir) = &self.target_dir {
+            write!(f, " --target-dir={}", target_dir)?;
+        }
+
         Ok(())
     }
 }
@@ -176,6 +184,7 @@ mod test {
             sanitizer: Sanitizer::Address,
             triple: String::from(crate::utils::default_target()),
             unstable_flags: Vec::new(),
+            target_dir: None,
         };
 
         let opts = vec![
@@ -218,6 +227,10 @@ mod test {
             },
             BuildOptions {
                 unstable_flags: vec![String::from("unstable"), String::from("flags")],
+                ..default_opts.clone()
+            },
+            BuildOptions {
+                target_dir: Some(String::from("/tmp/test")),
                 ..default_opts
             },
         ];
