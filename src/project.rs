@@ -233,6 +233,10 @@ impl FuzzProject {
         let mut cmd = self.cargo("run", build)?;
         cmd.arg("--bin").arg(fuzz_target);
 
+        if let Some(target_dir) = &build.target_dir {
+            cmd.arg("--target-dir").arg(target_dir);
+        }
+
         let mut artifact_arg = ffi::OsString::from("-artifact_prefix=");
         artifact_arg.push(self.artifacts_for(&fuzz_target)?);
         cmd.arg("--").arg(artifact_arg);
@@ -251,6 +255,10 @@ impl FuzzProject {
             cmd.arg("--bin").arg(fuzz_target);
         } else {
             cmd.arg("--bins");
+        }
+
+        if let Some(target_dir) = &build.target_dir {
+            cmd.arg("--target-dir").arg(target_dir);
         }
 
         let status = cmd
