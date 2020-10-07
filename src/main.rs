@@ -14,13 +14,13 @@ mod options;
 mod project;
 mod utils;
 
-static FUZZ_TARGETS_DIR_OLD: &'static str = "fuzzers";
-static FUZZ_TARGETS_DIR: &'static str = "fuzz_targets";
+static FUZZ_TARGETS_DIR_OLD: &str = "fuzzers";
+static FUZZ_TARGETS_DIR: &str = "fuzz_targets";
 
 // It turns out that `clap`'s `long_about()` makes `cargo fuzz --help`
 // unreadable, and its `before_help()` injects our long about text before the
 // version, so change the default template slightly.
-const LONG_ABOUT_TEMPLATE: &'static str = "\
+const LONG_ABOUT_TEMPLATE: &str = "\
 {bin} {version}
 {about}
 
@@ -33,7 +33,7 @@ USAGE:
 
 {after-help}";
 
-const RUN_BEFORE_HELP: &'static str = "\
+const RUN_BEFORE_HELP: &str = "\
 The fuzz target name is the same as the name of the fuzz target script in
 fuzz/fuzz_targets/, i.e. the name picked when running `cargo fuzz add`.
 
@@ -46,7 +46,7 @@ By default fuzz targets are built with optimizations equivalent to
 `cargo build --release`, but with debug assertions and overflow checks enabled.
 Address Sanitizer is also enabled by default.";
 
-const RUN_AFTER_HELP: &'static str = "\
+const RUN_AFTER_HELP: &str = "\
 
 A full list of libFuzzer options can be found at
 http://llvm.org/docs/LibFuzzer.html#options
@@ -72,12 +72,12 @@ include:
     http://llvm.org/docs/LibFuzzer.html#dictionaries\
 ";
 
-const BUILD_BEFORE_HELP: &'static str = "\
+const BUILD_BEFORE_HELP: &str = "\
 By default fuzz targets are built with optimizations equivalent to
 `cargo build --release`, but with debug assertions and overflow checks enabled.
 Address Sanitizer is also enabled by default.";
 
-const BUILD_AFTER_HELP: &'static str = "\
+const BUILD_AFTER_HELP: &str = "\
 Sanitizers perform checks necessary for detecting bugs in unsafe code
 at the cost of some performance. For more information on sanitizers see
 https://doc.rust-lang.org/unstable-book/compiler-flags/sanitizer.html\
