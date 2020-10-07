@@ -14,6 +14,6 @@ pub struct Build {
 impl RunCommand for Build {
     fn run_command(&mut self) -> Result<()> {
         let project = FuzzProject::find_existing()?;
-        project.exec_build(&self.build, self.target.as_ref().map(|s| s.as_str()))
+        project.exec_build(&self.build, self.target.as_deref().map(|s| s))
     }
 }
