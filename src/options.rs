@@ -113,6 +113,10 @@ pub struct BuildOptions {
     #[structopt(long = "target-dir")]
     /// Target dir option to pass to cargo build.
     pub target_dir: Option<String>,
+
+    #[structopt(long = "coverage")]
+    /// Instrument program code with coverage information and visualize code coverage at the end of fuzzing execution.
+    pub coverage: bool,
 }
 
 impl stdfmt::Display for BuildOptions {
@@ -163,6 +167,10 @@ impl stdfmt::Display for BuildOptions {
             write!(f, " --target-dir={}", target_dir)?;
         }
 
+        if self.coverage {
+            write!(f, " --coverage")?;
+        }
+
         Ok(())
     }
 }
@@ -185,6 +193,7 @@ mod test {
             triple: String::from(crate::utils::default_target()),
             unstable_flags: Vec::new(),
             target_dir: None,
+            coverage: false,
         };
 
         let opts = vec![
@@ -232,6 +241,10 @@ mod test {
             BuildOptions {
                 target_dir: Some(String::from("/tmp/test")),
                 ..default_opts
+            },
+            BuildOptions {
+                coverage: true,
+                ..default_opts.clone()
             },
         ];
 
