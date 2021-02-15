@@ -183,6 +183,10 @@ impl FuzzProject {
             rustflags.push_str(" -Cdebug-assertions");
         }
 
+        if build.coverage {
+            rustflags.push_str(" -Zinstrument-coverage");
+        }
+
         // If release mode is enabled then we force 1 CGU to be used in rustc.
         // This will result in slower compilations but it looks like the sancov
         // passes otherwise add `notEligibleToImport` annotations to functions
