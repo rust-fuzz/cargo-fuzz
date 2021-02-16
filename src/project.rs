@@ -160,10 +160,21 @@ impl FuzzProject {
                                      -Cpasses=sancov \
                                      -Cllvm-args=-sanitizer-coverage-level=4 \
                                      -Cllvm-args=-sanitizer-coverage-trace-compares \
-                                     -Cllvm-args=-sanitizer-coverage-inline-8bit-counters \
-                                     -Cllvm-args=-sanitizer-coverage-pc-table \
                                      -Clink-dead-code"
             .to_owned();
+
+        match build.coverage_output_file {
+            Some(_) => {
+                rustflags.push_str(" -Zinstrument-coverage");
+            }
+            None => {
+                // These two flags currently cause a linking error when combined with `-Zinstrument-coverage`,
+                // so we enable them only if the user does not want to generate source-based coverage information.
+                rustflags.push_str(" -Cllvm-args=-sanitizer-coverage-inline-8bit-counters \
+                                           -Cllvm-args=-sanitizer-coverage-pc-table");
+            }
+        }
+
         match build.sanitizer {
             Sanitizer::None => {}
             Sanitizer::Memory => {
@@ -181,10 +192,6 @@ impl FuzzProject {
         }
         if !build.release || build.debug_assertions {
             rustflags.push_str(" -Cdebug-assertions");
-        }
-
-        if build.coverage {
-            rustflags.push_str(" -Zinstrument-coverage");
         }
 
         // If release mode is enabled then we force 1 CGU to be used in rustc.
@@ -244,6 +251,13 @@ impl FuzzProject {
         let mut artifact_arg = ffi::OsString::from("-artifact_prefix=");
         artifact_arg.push(self.artifacts_for(&fuzz_target)?);
         cmd.arg("--").arg(artifact_arg);
+
+        match &build.coverage_output_file {
+            Some(filename) => {
+                cmd.env("LLVM_PROFILE_FILE", format!("{}.profraw", filename));
+            }
+            None => {}
+        }
 
         Ok(cmd)
     }

@@ -115,8 +115,9 @@ pub struct BuildOptions {
     pub target_dir: Option<String>,
 
     #[structopt(long = "coverage")]
-    /// Instrument program code with coverage information and visualize code coverage at the end of fuzzing execution.
-    pub coverage: bool,
+    /// Instrument program code with source-based code coverage information.
+    /// The profiler data will be saved in the given file.
+    pub coverage_output_file: Option<String>,
 }
 
 impl stdfmt::Display for BuildOptions {
@@ -167,8 +168,8 @@ impl stdfmt::Display for BuildOptions {
             write!(f, " --target-dir={}", target_dir)?;
         }
 
-        if self.coverage {
-            write!(f, " --coverage")?;
+        if let Some(filename) = &self.coverage_output_file {
+            write!(f, "  --coverage={}", filename)?;
         }
 
         Ok(())
@@ -193,7 +194,7 @@ mod test {
             triple: String::from(crate::utils::default_target()),
             unstable_flags: Vec::new(),
             target_dir: None,
-            coverage: false,
+            coverage_output_file: None,
         };
 
         let opts = vec![
@@ -243,7 +244,7 @@ mod test {
                 ..default_opts
             },
             BuildOptions {
-                coverage: true,
+                coverage_output_file: None,
                 ..default_opts.clone()
             },
         ];

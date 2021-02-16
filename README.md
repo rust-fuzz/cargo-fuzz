@@ -61,6 +61,29 @@ You can also always find the full command-line options that are available with
 $ cargo fuzz --help
 ```
 
+## Generating code coverage information
+
+Use the `--coverage` build option to generate precise
+[source-based code coverage](https://blog.rust-lang.org/inside-rust/2020/11/12/source-based-code-coverage.html)
+information. This compiles your project using the `-Zinstrument-coverage` Rust compiler flag.
+
+Running the generated binary creates raw profiling data in a file called `default.profraw`.
+This file can be used to generate coverage reports and visualize code-coverage information
+as described in the [Unstable book](https://doc.rust-lang.org/beta/unstable-book/compiler-flags/source-based-code-coverage.html#installing-llvm-coverage-tools).
+
+Minimal example of visualizing code coverage:
+
+1. Run the fuzzer using
+   
+   `$ cargo fuzz run --coverage <target>`
+2. Integrate 
+  
+   `$llvm-profdata merge -sparse default.profraw -o default.profdata`
+3. 
+
+Note: we recommend using LLVM 11 and a recent nightly version of the Rust toolchain.
+This code was tested with `1.51.0-nightly (2021-02-10)`.
+
 ## Trophy case
 
 [The trophy case](https://github.com/rust-fuzz/trophy-case) has a list of bugs
