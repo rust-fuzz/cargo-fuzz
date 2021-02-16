@@ -70,9 +70,9 @@ information:
 $ cargo fuzz run --coverage <coverage data output file> <target>
 ```
 This compiles your project using the `-Zinstrument-coverage` Rust compiler flag and generates coverage data in the
-specified file. If you run the fuzzer multiple times you can specify different output file names.
-These raw-coverage-data files can be then merged and indexed using the fuzzer-instrumented program
-to generate coverage reports and visualize code-coverage information.
+specified file. This file can be used to generate coverage reports and visualize code-coverage information.
+If you run the fuzzer multiple times, you can specify different coverage-output file names and subsequently merge them
+into one data file.
 Read more in the [Unstable book](https://doc.rust-lang.org/beta/unstable-book/compiler-flags/source-based-code-coverage.html#installing-llvm-coverage-tools).
 
 ### Example
@@ -96,6 +96,8 @@ Suppose we have a `compiler` fuzz target for which we want to visualize code cov
 4. Visualize the coverage data in HTML:
 
    `llvm-cov show target/.../compiler --format=html -instr-profile=runs.profdata > index.html`
+   
+   There are many visualization and coverage-report options available (see `llvm-cov show --help`).
 
 Note: we recommend using LLVM 11 and a recent nightly version of the Rust toolchain.
 This code was tested with `1.51.0-nightly (2021-02-10)`.
