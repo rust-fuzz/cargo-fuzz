@@ -241,11 +241,11 @@ mod test {
             },
             BuildOptions {
                 target_dir: Some(String::from("/tmp/test")),
-                ..default_opts
+                ..default_opts.clone()
             },
             BuildOptions {
                 coverage_output_file: None,
-                ..default_opts.clone()
+                ..default_opts
             },
         ];
 
