@@ -63,23 +63,39 @@ $ cargo fuzz --help
 
 ## Generating code coverage information
 
-Use the `--coverage` build option to generate precise
+Use the `--coverage` option to generate precise
 [source-based code coverage](https://blog.rust-lang.org/inside-rust/2020/11/12/source-based-code-coverage.html)
-information. This compiles your project using the `-Zinstrument-coverage` Rust compiler flag.
+information:
+```
+$ cargo fuzz run --coverage <coverage data output file> <target>
+```
+This compiles your project using the `-Zinstrument-coverage` Rust compiler flag and generates coverage data in the
+specified file. If you run the fuzzer multiple times you can specify different output file names.
+These raw-coverage-data files can be then merged and indexed using the fuzzer-instrumented program
+to generate coverage reports and visualize code-coverage information.
+Read more in the [Unstable book](https://doc.rust-lang.org/beta/unstable-book/compiler-flags/source-based-code-coverage.html#installing-llvm-coverage-tools).
 
-Running the generated binary creates raw profiling data in a file called `default.profraw`.
-This file can be used to generate coverage reports and visualize code-coverage information
-as described in the [Unstable book](https://doc.rust-lang.org/beta/unstable-book/compiler-flags/source-based-code-coverage.html#installing-llvm-coverage-tools).
+### Example
 
-Minimal example of visualizing code coverage:
+Suppose we have a `compiler` fuzz target for which we want to visualize code coverage.
 
-1. Run the fuzzer using
+1. Run the fuzzer on the `compiler` target:
    
-   `$ cargo fuzz run --coverage <target>`
-2. Integrate 
+   `$ cargo fuzz build --coverage "run1" compiler`
+   
+   This will generate a file named `run1.profraw` in the same directory.
+
+2. You can run the fuzzer again, generating more profiler data in another output file:
+
+   `$ cargo fuzz run --coverage "run2" compiler`
+
+3. Merge the coverage data files and index them with the instrumented compiler code: 
   
-   `$llvm-profdata merge -sparse default.profraw -o default.profdata`
-3. 
+   `$llvm-profdata merge -sparse run1.profraw run2.profraw -o runs.profdata`
+
+4. Visualize the coverage data in HTML:
+
+   `llvm-cov show target/.../compiler --format=html -instr-profile=runs.profdata > index.html`
 
 Note: we recommend using LLVM 11 and a recent nightly version of the Rust toolchain.
 This code was tested with `1.51.0-nightly (2021-02-10)`.
