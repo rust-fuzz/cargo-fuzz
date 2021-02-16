@@ -91,11 +91,11 @@ Suppose we have a `compiler` fuzz target for which we want to visualize code cov
 
 3. Merge the coverage data files and index them with the instrumented compiler code: 
   
-   `$llvm-profdata merge -sparse run1.profraw run2.profraw -o runs.profdata`
+   `$ llvm-profdata merge -sparse run1.profraw run2.profraw -o runs.profdata`
 
 4. Visualize the coverage data in HTML:
 
-   `llvm-cov show target/.../compiler --format=html -instr-profile=runs.profdata > index.html`
+   `$ llvm-cov show target/.../compiler --format=html -instr-profile=runs.profdata > index.html`
    
    There are many visualization and coverage-report options available (see `llvm-cov show --help`).
 
