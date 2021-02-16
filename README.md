@@ -79,15 +79,15 @@ Read more in the [Unstable book](https://doc.rust-lang.org/beta/unstable-book/co
 
 Suppose we have a `compiler` fuzz target for which we want to visualize code coverage.
 
-1. Run the fuzzer on the `compiler` target:
+1. Run the fuzzer on the `compiler` target for 60 seconds:
    
-   `$ cargo fuzz build --coverage "run1" compiler`
+   `$ cargo fuzz build --coverage "run1" compiler` -- -max_total_time=60
    
    This will generate a file named `run1.profraw` in the same directory.
 
 2. You can run the fuzzer again, generating more profiler data in another output file:
 
-   `$ cargo fuzz run --coverage "run2" compiler`
+   `$ cargo fuzz run --coverage "run2" compiler` -- -max_total_time=60
 
 3. Merge the coverage data files and index them with the instrumented compiler code: 
   
@@ -99,8 +99,12 @@ Suppose we have a `compiler` fuzz target for which we want to visualize code cov
    
    There are many visualization and coverage-report options available (see `llvm-cov show --help`).
 
-Note: we recommend using LLVM 11 and a recent nightly version of the Rust toolchain.
-This code was tested with `1.51.0-nightly (2021-02-10)`.
+Note:
+- We recommend using LLVM 11 and a recent nightly version of the Rust toolchain. 
+  This code was tested with `1.51.0-nightly (2021-02-10)`.
+- Coverage information will be written to the `.profraw` file after `cargo fuzz` successfully finishes running.
+  One way to ensure this is to use the `--max_total_time=<seconds>` or `--runs=<number>` libfuzzer option,
+  as opposed to manually aborting the execution using ctrl+c.
 
 ## Trophy case
 
