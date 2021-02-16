@@ -244,6 +244,40 @@ fn run_with_crash() {
 }
 
 #[test]
+fn run_with_coverage() {
+    let project = project("run_with_coverage")
+        .with_fuzz()
+        .fuzz_target(
+            "with_coverage",
+            r#"
+                #![no_main]
+                use libfuzzer_sys::fuzz_target;
+
+                fuzz_target!(|data: &[u8]| {
+                    run_with_coverage::pass_fuzzing(data);
+                });
+            "#,
+        )
+        .build();
+
+    project
+        .cargo_fuzz()
+        .arg("run")
+        .arg("--coverage")
+        .arg("coverage_output")
+        .arg("with_coverage")
+        .arg("--")
+        .arg("-runs=100")
+        .assert()
+        .stderr(
+            predicate::str::contains("Done 100 runs").and(predicate::str::contains(format!(
+                "Raw coverage data saved in coverage_output.profraw"
+            ))),
+        )
+        .success();
+}
+
+#[test]
 fn run_without_sanitizer_with_crash() {
     let project = project("run_without_sanitizer_with_crash")
         .with_fuzz()

@@ -170,8 +170,10 @@ impl FuzzProject {
             None => {
                 // These two flags currently cause a linking error when combined with `-Zinstrument-coverage`,
                 // so we enable them only if the user does not want to generate source-based coverage information.
-                rustflags.push_str(" -Cllvm-args=-sanitizer-coverage-inline-8bit-counters \
-                                           -Cllvm-args=-sanitizer-coverage-pc-table");
+                rustflags.push_str(
+                    " -Cllvm-args=-sanitizer-coverage-inline-8bit-counters \
+                     -Cllvm-args=-sanitizer-coverage-pc-table",
+                );
             }
         }
 
@@ -240,6 +242,16 @@ impl FuzzProject {
         Ok(cmd)
     }
 
+    fn with_coverage_output_extension(filename: &str) -> Result<String> {
+        let file_with_ext = Path::new(filename).with_extension("profraw");
+        match file_with_ext.to_str() {
+            Some(name) => Ok(String::from(name)),
+            None => {
+                bail!("File name for generated coverage output must contain only UTF-8 characters.")
+            }
+        }
+    }
+
     fn cargo_run(&self, build: &options::BuildOptions, fuzz_target: &str) -> Result<Command> {
         let mut cmd = self.cargo("run", build)?;
         cmd.arg("--bin").arg(fuzz_target);
@@ -254,7 +266,10 @@ impl FuzzProject {
 
         match &build.coverage_output_file {
             Some(filename) => {
-                cmd.env("LLVM_PROFILE_FILE", format!("{}.profraw", filename));
+                cmd.env(
+                    "LLVM_PROFILE_FILE",
+                    FuzzProject::with_coverage_output_extension(filename)?,
+                );
             }
             None => {}
         }
@@ -428,6 +443,15 @@ impl FuzzProject {
             .wait()
             .with_context(|| format!("failed to wait on child process for command: {:?}", cmd))?;
         if status.success() {
+            match &run.build.coverage_output_file {
+                Some(filename) => {
+                    eprintln!(
+                        "Raw coverage data saved in {}.",
+                        FuzzProject::with_coverage_output_extension(filename)?
+                    );
+                }
+                None => {}
+            }
             return Ok(());
         }
 
