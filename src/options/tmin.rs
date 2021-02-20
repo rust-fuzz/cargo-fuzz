@@ -28,6 +28,10 @@ pub struct Tmin {
     #[structopt(parse(from_os_str))]
     /// Path to the failing test case to be minimized
     pub test_case: PathBuf,
+
+    #[structopt(last(true))]
+    /// Additional libFuzzer arguments passed through to the binary
+    pub args: Vec<String>,
 }
 
 impl RunCommand for Tmin {

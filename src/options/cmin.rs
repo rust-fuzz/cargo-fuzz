@@ -15,6 +15,10 @@ pub struct Cmin {
     #[structopt(parse(from_os_str))]
     /// The corpus directory to minify into
     pub corpus: Option<PathBuf>,
+
+    #[structopt(last(true))]
+    /// Additional libFuzzer arguments passed through to the binary
+    pub args: Vec<String>,
 }
 
 impl RunCommand for Cmin {
