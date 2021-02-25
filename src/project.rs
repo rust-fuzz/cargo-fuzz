@@ -433,7 +433,9 @@ impl FuzzProject {
                 Some(filename) => {
                     eprintln!(
                         "Raw coverage data saved in {}.",
-                        FuzzProject::with_coverage_output_extension(filename).to_str().unwrap()
+                        FuzzProject::with_coverage_output_extension(filename)
+                            .to_str()
+                            .unwrap()
                     );
                 }
                 None => {}
