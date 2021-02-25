@@ -67,13 +67,15 @@ Use the `--coverage` option to generate precise
 [source-based code coverage](https://blog.rust-lang.org/inside-rust/2020/11/12/source-based-code-coverage.html)
 information:
 ```
-$ cargo fuzz run --coverage <coverage data output file> <target>
+$ cargo fuzz run --coverage <coverage output file name> <target>
 ```
 This compiles your project using the `-Zinstrument-coverage` Rust compiler flag and generates coverage data in the
-specified file. This file can be used to generate coverage reports and visualize code-coverage information.
+specified file plus a `.profraw` extension. This file can be used to generate coverage reports and visualize code-coverage information.
 If you run the fuzzer multiple times, you can specify different coverage-output file names and subsequently merge them
 into one data file.
-Read more in the [Unstable book](https://doc.rust-lang.org/beta/unstable-book/compiler-flags/source-based-code-coverage.html#installing-llvm-coverage-tools).
+
+Read more about installing the necessary tools and generating coverage reports
+in the [Unstable book](https://doc.rust-lang.org/beta/unstable-book/compiler-flags/source-based-code-coverage.html#installing-llvm-coverage-tools).
 
 ### Example
 
@@ -100,11 +102,18 @@ Suppose we have a `compiler` fuzz target for which we want to visualize code cov
    There are many visualization and coverage-report options available (see `llvm-cov show --help`).
 
 Note:
-- We recommend using LLVM 11 and a recent nightly version of the Rust toolchain. 
+- We recommend using at least LLVM 11 and a recent nightly version of the Rust toolchain. 
   This code was tested with `1.51.0-nightly (2021-02-10)`.
-- Coverage information will be written to the `.profraw` file after `cargo fuzz` successfully finishes running.
-  One way to ensure this is to use the `--max_total_time=<seconds>` or `--runs=<number>` libfuzzer option,
-  as opposed to manually aborting the execution using ctrl+c.
+- Coverage information will be written to the `.profraw` file when `cargo fuzz` stops running after
+  
+    * the fuzzer reached the time limit or specified number of runs, or
+    * the fuzzer detected a crash.
+    
+  In particular, terminating the fuzzer with ctrl+c will produce an empty `.profraw` coverage-data file.
+  One way to ensure that coverage information is generated is to use the `--max_total_time=<seconds>` or `--runs=<number>` libfuzzer options.
+  Another option is to add `%c` to the name of the coverage-output file: this way, coverage information is
+  [continuously written to the file](https://doc.rust-lang.org/beta/unstable-book/compiler-flags/source-based-code-coverage.html#running-the-instrumented-binary-to-generate-raw-coverage-profiling-data).
+  However, this works only on certain platforms.
 
 ## Trophy case
 

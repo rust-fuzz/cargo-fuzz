@@ -160,21 +160,13 @@ impl FuzzProject {
                                      -Cpasses=sancov \
                                      -Cllvm-args=-sanitizer-coverage-level=4 \
                                      -Cllvm-args=-sanitizer-coverage-trace-compares \
+                                     -Cllvm-args=-sanitizer-coverage-inline-8bit-counters \
+                                     -Cllvm-args=-sanitizer-coverage-pc-table \
                                      -Clink-dead-code"
             .to_owned();
 
-        match build.coverage_output_file {
-            Some(_) => {
-                rustflags.push_str(" -Zinstrument-coverage");
-            }
-            None => {
-                // These two flags currently cause a linking error when combined with `-Zinstrument-coverage`,
-                // so we enable them only if the user does not want to generate source-based coverage information.
-                rustflags.push_str(
-                    " -Cllvm-args=-sanitizer-coverage-inline-8bit-counters \
-                     -Cllvm-args=-sanitizer-coverage-pc-table",
-                );
-            }
+        if build.coverage_output_file.is_some() {
+            rustflags.push_str(" -Zinstrument-coverage");
         }
 
         match build.sanitizer {
@@ -242,14 +234,8 @@ impl FuzzProject {
         Ok(cmd)
     }
 
-    fn with_coverage_output_extension(filename: &str) -> Result<String> {
-        let file_with_ext = Path::new(filename).with_extension("profraw");
-        match file_with_ext.to_str() {
-            Some(name) => Ok(String::from(name)),
-            None => {
-                bail!("File name for generated coverage output must contain only UTF-8 characters.")
-            }
-        }
+    fn with_coverage_output_extension(filename: &str) -> PathBuf {
+        Path::new(filename).with_extension("profraw")
     }
 
     fn cargo_run(&self, build: &options::BuildOptions, fuzz_target: &str) -> Result<Command> {
@@ -268,7 +254,7 @@ impl FuzzProject {
             Some(filename) => {
                 cmd.env(
                     "LLVM_PROFILE_FILE",
-                    FuzzProject::with_coverage_output_extension(filename)?,
+                    FuzzProject::with_coverage_output_extension(filename),
                 );
             }
             None => {}
@@ -447,7 +433,7 @@ impl FuzzProject {
                 Some(filename) => {
                     eprintln!(
                         "Raw coverage data saved in {}.",
-                        FuzzProject::with_coverage_output_extension(filename)?
+                        FuzzProject::with_coverage_output_extension(filename).to_str().unwrap()
                     );
                 }
                 None => {}
