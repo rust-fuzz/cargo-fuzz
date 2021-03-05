@@ -482,12 +482,12 @@ impl FuzzProject {
             eprintln!("\n{:─<80}\n", "");
             return Err(anyhow!("Command `{:?}` exited with {}", cmd, status)).with_context(|| {
                 "Test case minimization failed.\n\
-                 \n\
-                 Usually this isn't a hard error, and just means that libfuzzer\n\
-                 doesn't know how to minimize the test case any further while\n\
-                 still reproducing the original crash.\n\
-                 \n\
-                 See the logs above for details."
+                     \n\
+                     Usually this isn't a hard error, and just means that libfuzzer\n\
+                     doesn't know how to minimize the test case any further while\n\
+                     still reproducing the original crash.\n\
+                     \n\
+                     See the logs above for details."
             });
         }
 
