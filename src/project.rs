@@ -660,8 +660,12 @@ impl FuzzProject {
         merge_cmd
             .output()
             .with_context(|| "Merging raw coverage files failed.")?;
-        eprintln!("Coverage data saved in {:?}.", profdata_out_path);
-        Ok(())
+        if profdata_out_path.exists() {
+            eprintln!("Coverage data merged and saved in {:?}.", profdata_out_path);
+            Ok(())
+        } else {
+            bail!("Coverage data could not be merged.")
+        }
     }
 
     fn path(&self) -> PathBuf {

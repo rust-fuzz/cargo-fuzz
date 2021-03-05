@@ -246,18 +246,17 @@ fn run_with_crash() {
 #[test]
 fn run_with_coverage() {
     let target = "with_coverage";
-    let corpus = Path::new("fuzz").join("corpus").join(target);
 
     let project = project("run_with_coverage")
         .with_fuzz()
         .fuzz_target(
-            "with_coverage",
+            target,
             r#"
                 #![no_main]
                 use libfuzzer_sys::fuzz_target;
 
                 fuzz_target!(|data: &[u8]| {
-                    run_with_coverage::pass_fuzzing(data);
+                    println!("{:?}", data);
                 });
             "#,
         )
@@ -267,7 +266,6 @@ fn run_with_coverage() {
         .cargo_fuzz()
         .arg("run")
         .arg(target)
-        .arg(&corpus)
         .arg("--")
         .arg("-runs=100")
         .assert()
@@ -278,12 +276,8 @@ fn run_with_coverage() {
         .cargo_fuzz()
         .arg("coverage")
         .arg(target)
-        .arg(&corpus)
         .assert()
         .success();
-
-    let profdata_file = project.fuzz_coverage_dir(target).join("coverage.profdata");
-    assert!(profdata_file.exists(), "Coverage data file not generated");
 }
 
 #[test]
