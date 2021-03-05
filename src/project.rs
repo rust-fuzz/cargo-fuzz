@@ -470,6 +470,10 @@ impl FuzzProject {
             .arg(format!("-runs={}", tmin.runs))
             .arg(&tmin.test_case);
 
+        for arg in &tmin.args {
+            cmd.arg(arg);
+        }
+
         let before_tmin = time::SystemTime::now();
 
         let mut child = cmd
@@ -537,6 +541,10 @@ impl FuzzProject {
     pub fn exec_cmin(&self, cmin: &options::Cmin) -> Result<()> {
         self.exec_build(&cmin.build, Some(&cmin.target))?;
         let mut cmd = self.cargo_run(&cmin.build, &cmin.target)?;
+
+        for arg in &cmin.args {
+            cmd.arg(arg);
+        }
 
         let corpus = if let Some(corpus) = cmin.corpus.clone() {
             corpus
