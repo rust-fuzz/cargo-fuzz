@@ -165,7 +165,7 @@ impl FuzzProject {
                                      -Clink-dead-code"
             .to_owned();
 
-        if build.coverage_output_file.is_some() {
+        if build.coverage {
             rustflags.push_str(" -Zinstrument-coverage");
         }
 
@@ -234,10 +234,6 @@ impl FuzzProject {
         Ok(cmd)
     }
 
-    fn with_coverage_output_extension(filename: &str) -> PathBuf {
-        Path::new(filename).with_extension("profraw")
-    }
-
     fn cargo_run(&self, build: &options::BuildOptions, fuzz_target: &str) -> Result<Command> {
         let mut cmd = self.cargo("run", build)?;
         cmd.arg("--bin").arg(fuzz_target);
@@ -249,16 +245,6 @@ impl FuzzProject {
         let mut artifact_arg = ffi::OsString::from("-artifact_prefix=");
         artifact_arg.push(self.artifacts_for(&fuzz_target)?);
         cmd.arg("--").arg(artifact_arg);
-
-        match &build.coverage_output_file {
-            Some(filename) => {
-                cmd.env(
-                    "LLVM_PROFILE_FILE",
-                    FuzzProject::with_coverage_output_extension(filename),
-                );
-            }
-            None => {}
-        }
 
         Ok(cmd)
     }
@@ -429,17 +415,6 @@ impl FuzzProject {
             .wait()
             .with_context(|| format!("failed to wait on child process for command: {:?}", cmd))?;
         if status.success() {
-            match &run.build.coverage_output_file {
-                Some(filename) => {
-                    eprintln!(
-                        "Raw coverage data saved in {}.",
-                        FuzzProject::with_coverage_output_extension(filename)
-                            .to_str()
-                            .unwrap()
-                    );
-                }
-                None => {}
-            }
             return Ok(());
         }
 
@@ -594,12 +569,81 @@ impl FuzzProject {
         Ok(())
     }
 
+    /// Produce coverage information for a given corpus
+    pub fn exec_coverage(self, coverage: &options::Coverage) -> Result<()> {
+        self.exec_build(&coverage.build, Some(&coverage.target))?;
+
+        let corpora = if coverage.corpus.is_empty() {
+            vec![self.corpus_for(&coverage.target)?]
+        } else {
+            coverage
+                .corpus
+                .iter()
+                .map(|name| Path::new(name).to_path_buf())
+                .collect()
+        };
+
+        let coverage_out_dir = self.coverage_for(&coverage.target)?;
+        for corpus in corpora {
+            for input_file in fs::read_dir(corpus)? {
+                let (mut cmd, file_name) =
+                    self.create_coverage_cmd(coverage, &coverage_out_dir, &input_file?.path())?; // TODO (MRA) deal with error
+                eprintln!("Generating coverage data for {:?}", file_name);
+                cmd.output()
+                    .with_context(|| format!("failed to run command: {:?}", cmd))?;
+            }
+        }
+
+        eprintln!("Raw coverage data saved in {:?}.", coverage_out_dir);
+
+        Ok(())
+    }
+
+    fn create_coverage_cmd(
+        &self,
+        coverage: &options::Coverage,
+        coverage_dir: &PathBuf,
+        input_file: &Path,
+    ) -> Result<(Command, String)> {
+        let mut cmd = self.cargo_run(&coverage.build, &coverage.target)?;
+
+        // TODO (MRA) Merge profraw files with cargo-cov
+        // TODO (MRA) Document in README that we need cargo-cov
+        // TODO (MRA) Consider adding option for not merging coverage files
+
+        // Raw coverage data will be saved in `coverage/<target>` directory.
+        let input_file_name = input_file
+            .file_name()
+            .and_then(|x| x.to_str())
+            .expect(format!("Corpus contains file with invalid name {:?}", input_file).as_str());
+        cmd.env(
+            "LLVM_PROFILE_FILE",
+            coverage_dir.join(format!("default-{}.profraw", input_file_name)),
+        );
+        cmd.arg(input_file);
+
+        for arg in &coverage.args {
+            cmd.arg(arg);
+        }
+
+        Ok((cmd, input_file_name.to_string()))
+    }
+
     fn path(&self) -> PathBuf {
         self.root_project.join("fuzz")
     }
 
     fn manifest_path(&self) -> PathBuf {
         self.path().join("Cargo.toml")
+    }
+
+    fn coverage_for(&self, target: &str) -> Result<PathBuf> {
+        let mut p = self.path();
+        p.push("coverage");
+        p.push(target);
+        fs::create_dir_all(&p)
+            .with_context(|| format!("could not make a coverage directory at {:?}", p))?;
+        Ok(p)
     }
 
     fn corpus_for(&self, target: &str) -> Result<PathBuf> {

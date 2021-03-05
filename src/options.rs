@@ -1,6 +1,7 @@
 mod add;
 mod build;
 mod cmin;
+mod coverage;
 mod fmt;
 mod init;
 mod list;
@@ -8,7 +9,8 @@ mod run;
 mod tmin;
 
 pub use self::{
-    add::Add, build::Build, cmin::Cmin, fmt::Fmt, init::Init, list::List, run::Run, tmin::Tmin,
+    add::Add, build::Build, cmin::Cmin, coverage::Coverage, fmt::Fmt, init::Init, list::List,
+    run::Run, tmin::Tmin,
 };
 
 use std::fmt as stdfmt;
@@ -114,10 +116,10 @@ pub struct BuildOptions {
     /// Target dir option to pass to cargo build.
     pub target_dir: Option<String>,
 
-    #[structopt(long = "coverage")]
+    #[structopt(skip = false)]
     /// Instrument program code with source-based code coverage information.
-    /// The profiler data will be saved in the given file.
-    pub coverage_output_file: Option<String>,
+    /// This build option will be automatically used when running `cargo fuzz coverage`.
+    pub coverage: bool,
 }
 
 impl stdfmt::Display for BuildOptions {
@@ -168,8 +170,8 @@ impl stdfmt::Display for BuildOptions {
             write!(f, " --target-dir={}", target_dir)?;
         }
 
-        if let Some(filename) = &self.coverage_output_file {
-            write!(f, "  --coverage={}", filename)?;
+        if self.coverage {
+            write!(f, " --coverage")?;
         }
 
         Ok(())
@@ -194,7 +196,7 @@ mod test {
             triple: String::from(crate::utils::default_target()),
             unstable_flags: Vec::new(),
             target_dir: None,
-            coverage_output_file: None,
+            coverage: false,
         };
 
         let opts = vec![
@@ -244,7 +246,7 @@ mod test {
                 ..default_opts.clone()
             },
             BuildOptions {
-                coverage_output_file: None,
+                coverage: false,
                 ..default_opts
             },
         ];
