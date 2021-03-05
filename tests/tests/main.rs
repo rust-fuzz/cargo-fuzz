@@ -277,7 +277,11 @@ fn run_with_coverage() {
         .arg("coverage")
         .arg(target)
         .assert()
+        .stderr(predicate::str::contains("Coverage data merged and saved"))
         .success();
+
+    let profdata_file = project.fuzz_coverage_dir(target).join("coverage.profdata");
+    assert!(profdata_file.exists(), "Coverage data file not generated");
 }
 
 #[test]
