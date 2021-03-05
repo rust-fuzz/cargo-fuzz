@@ -602,18 +602,20 @@ impl FuzzProject {
             )
         }
 
-        let coverage_out_dir = self.coverage_for(&coverage.target)?;
+        let (coverage_out_raw_dir, coverage_out_file) = self.coverage_for(&coverage.target)?;
 
         // Generating individual coverage data for all files in corpora
         for input_file in readable_input_files {
             let (mut cmd, file_name) =
-                self.create_coverage_cmd(coverage, &coverage_out_dir, &input_file.path())?;
+                self.create_coverage_cmd(coverage, &coverage_out_raw_dir, &input_file.path())?;
             eprintln!("Generating coverage data for {:?}", file_name);
             cmd.output()
                 .with_context(|| format!("failed to run command: {:?}", cmd))?;
         }
 
-        eprintln!("Raw coverage data saved in {:?}.", coverage_out_dir);
+        self.merge_coverage(&coverage_out_raw_dir, &coverage_out_file)?;
+
+        eprintln!("Coverage data saved in {:?}.", coverage_out_file);
 
         Ok(())
     }
@@ -626,9 +628,7 @@ impl FuzzProject {
     ) -> Result<(Command, String)> {
         let mut cmd = self.cargo_run(&coverage.build, &coverage.target)?;
 
-        // TODO (MRA) Merge profraw files with cargo-profdata
         // TODO (MRA) Document in README that we need cargo-cov
-        // TODO (MRA) Consider adding option for not merging coverage files
 
         // Raw coverage data will be saved in `coverage/<target>` directory.
         let input_file_name = input_file
@@ -648,6 +648,26 @@ impl FuzzProject {
         Ok((cmd, input_file_name.to_string()))
     }
 
+    fn merge_coverage(&self, profdata_raw_path: &Path, profdata_out_path: &Path) -> Result<()> {
+        let mut merge_cmd = Command::new(cargo_binutils::Tool::Profdata.path()?);
+        merge_cmd.arg("merge").arg("-sparse");
+        for raw_file in fs::read_dir(profdata_raw_path).with_context(|| {
+            format!(
+                "failed to read directory entries of {}",
+                profdata_raw_path.display()
+            )
+        })? {
+            merge_cmd.arg(raw_file?.path());
+        }
+        merge_cmd.arg("-o").arg(profdata_out_path);
+        println!("Executing {:?}", merge_cmd);
+        println!("Merging raw coverage data...");
+        merge_cmd
+            .output()
+            .with_context(|| "Merging raw coverage files failed.")?;
+        Ok(())
+    }
+
     fn path(&self) -> PathBuf {
         self.root_project.join("fuzz")
     }
@@ -656,13 +676,18 @@ impl FuzzProject {
         self.path().join("Cargo.toml")
     }
 
-    fn coverage_for(&self, target: &str) -> Result<PathBuf> {
-        let mut p = self.path();
-        p.push("coverage");
-        p.push(target);
-        fs::create_dir_all(&p)
-            .with_context(|| format!("could not make a coverage directory at {:?}", p))?;
-        Ok(p)
+    /// Returns paths to the `coverage/<target>/raw` directory and `coverage/<target>/coverage.profdata` file.
+    fn coverage_for(&self, target: &str) -> Result<(PathBuf, PathBuf)> {
+        let mut coverage_data = self.path();
+        coverage_data.push("coverage");
+        coverage_data.push(target);
+        let mut coverage_raw = coverage_data.clone();
+        coverage_data.push("coverage.profdata");
+        coverage_raw.push("raw");
+        fs::create_dir_all(&coverage_raw).with_context(|| {
+            format!("could not make a coverage directory at {:?}", coverage_raw)
+        })?;
+        Ok((coverage_raw, coverage_data))
     }
 
     fn corpus_for(&self, target: &str) -> Result<PathBuf> {
