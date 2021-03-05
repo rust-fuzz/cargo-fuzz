@@ -482,12 +482,12 @@ impl FuzzProject {
             eprintln!("\n{:─<80}\n", "");
             return Err(anyhow!("Command `{:?}` exited with {}", cmd, status)).with_context(|| {
                 "Test case minimization failed.\n\
-                     \n\
-                     Usually this isn't a hard error, and just means that libfuzzer\n\
-                     doesn't know how to minimize the test case any further while\n\
-                     still reproducing the original crash.\n\
-                     \n\
-                     See the logs above for details."
+                 \n\
+                 Usually this isn't a hard error, and just means that libfuzzer\n\
+                 doesn't know how to minimize the test case any further while\n\
+                 still reproducing the original crash.\n\
+                 \n\
+                 See the logs above for details."
             });
         }
 
@@ -602,7 +602,7 @@ impl FuzzProject {
     fn create_coverage_cmd(
         &self,
         coverage: &options::Coverage,
-        coverage_dir: &PathBuf,
+        coverage_dir: &Path,
         input_file: &Path,
     ) -> Result<(Command, String)> {
         let mut cmd = self.cargo_run(&coverage.build, &coverage.target)?;
@@ -615,7 +615,9 @@ impl FuzzProject {
         let input_file_name = input_file
             .file_name()
             .and_then(|x| x.to_str())
-            .expect(format!("Corpus contains file with invalid name {:?}", input_file).as_str());
+            .unwrap_or_else(|| {
+                panic!("Corpus contains file with invalid name {:?}", input_file)
+            });
         cmd.env(
             "LLVM_PROFILE_FILE",
             coverage_dir.join(format!("default-{}.profraw", input_file_name)),
