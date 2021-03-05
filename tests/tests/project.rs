@@ -218,6 +218,10 @@ impl Project {
         p
     }
 
+    pub fn fuzz_coverage_dir(&self, target: &str) -> PathBuf {
+        self.fuzz_dir().join("coverage").join(target)
+    }
+
     pub fn cargo_fuzz(&self) -> Command {
         let mut cmd = super::cargo_fuzz();
         cmd.current_dir(&self.root)

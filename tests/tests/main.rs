@@ -245,6 +245,9 @@ fn run_with_crash() {
 
 #[test]
 fn run_with_coverage() {
+    let target = "with_coverage";
+    let corpus = Path::new("fuzz").join("corpus").join(target);
+
     let project = project("run_with_coverage")
         .with_fuzz()
         .fuzz_target(
@@ -263,18 +266,24 @@ fn run_with_coverage() {
     project
         .cargo_fuzz()
         .arg("run")
-        .arg("--coverage")
-        .arg("coverage_output")
-        .arg("with_coverage")
+        .arg(target)
+        .arg(&corpus)
         .arg("--")
         .arg("-runs=100")
         .assert()
-        .stderr(
-            predicate::str::contains("Done 100 runs").and(predicate::str::contains(format!(
-                "Raw coverage data saved in coverage_output.profraw"
-            ))),
-        )
+        .stderr(predicate::str::contains("Done 100 runs"))
         .success();
+
+    project
+        .cargo_fuzz()
+        .arg("coverage")
+        .arg(target)
+        .arg(&corpus)
+        .assert()
+        .success();
+
+    let profdata_file = project.fuzz_coverage_dir(target).join("coverage.profdata");
+    assert!(profdata_file.exists(), "Coverage data file not generated");
 }
 
 #[test]

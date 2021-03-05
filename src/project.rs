@@ -596,7 +596,7 @@ impl FuzzProject {
         if readable_input_files.peek().is_none() {
             bail!(
                 "The corpus does not contain program-input files. \
-                 Coverage information will be only generated for existing inputs. \
+                 Coverage information requires existing input files. \
                  Try running the fuzzer first (`cargo fuzz run ...`) to generate a corpus, \
                  or provide a nonempty corpus directory."
             )
