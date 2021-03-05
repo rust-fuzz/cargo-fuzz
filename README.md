@@ -49,6 +49,10 @@ for easier debugging!
 
 Minify your corpus of input files!
 
+### `cargo fuzz coverage <target>`
+
+Generate coverage information about fuzzed program!
+
 ## Documentation
 
 Documentation can be found in the [Rust Fuzz
@@ -61,59 +65,50 @@ You can also always find the full command-line options that are available with
 $ cargo fuzz --help
 ```
 
-## Generating code coverage information
+## Code coverage
 
-Use the `--coverage` option to generate precise
+### Prerequisites
+Install the LLVM-coverage tools as described in the [Unstable book](https://doc.rust-lang.org/beta/unstable-book/compiler-flags/source-based-code-coverage.html#installing-llvm-coverage-tools).
+
+We recommend using at least LLVM 11 and a recent nightly version of the Rust toolchain.
+This code was tested with `1.51.0-nightly (2021-02-10)`.
+
+### Generate code-coverage data
+
+After you fuzzed your program, use the `coverage` command to generate precise
 [source-based code coverage](https://blog.rust-lang.org/inside-rust/2020/11/12/source-based-code-coverage.html)
 information:
 ```
-$ cargo fuzz run --coverage <coverage output file name> <target>
+$ cargo fuzz coverage <target> [corpus dir]
 ```
-This compiles your project using the `-Zinstrument-coverage` Rust compiler flag and generates coverage data in the
-specified file plus a `.profraw` extension. This file can be used to generate coverage reports and visualize code-coverage information.
-If you run the fuzzer multiple times, you can specify different coverage-output file names and subsequently merge them
-into one data file.
+This command
 
-Read more about installing the necessary tools and generating coverage reports
-in the [Unstable book](https://doc.rust-lang.org/beta/unstable-book/compiler-flags/source-based-code-coverage.html#installing-llvm-coverage-tools).
+- compiles your project using the `-Zinstrument-coverage` Rust compiler flag,
+- runs the program _without fuzzing_ on the provided corpus (if no corpus directory is provided it uses `fuzz/corpus/<target>` by default),
+- for each input file in the corpus, generates raw coverage data in the `fuzz/coverage/<target>/raw` subdirectory,
+- merges the raw files into a `coverage.profdata` file located in the `fuzz/coverage/<target>` subdirectory.
+
+Use the generated `coverage.profdata` file to generate coverage reports and visualize code-coverage information
+as described in the [Unstable book](https://doc.rust-lang.org/beta/unstable-book/compiler-flags/source-based-code-coverage.html#creating-coverage-reports).
 
 ### Example
 
 Suppose we have a `compiler` fuzz target for which we want to visualize code coverage.
 
-1. Run the fuzzer on the `compiler` target for 60 seconds:
-   
-   `$ cargo fuzz build --coverage "run1" compiler` -- -max_total_time=60
-   
-   This will generate a file named `run1.profraw` in the same directory.
+1. Run the fuzzer on the `compiler_fuzzer` target:
 
-2. You can run the fuzzer again, generating more profiler data in another output file:
+   `$ cargo fuzz run compiler_fuzzer`
 
-   `$ cargo fuzz run --coverage "run2" compiler` -- -max_total_time=60
+2. Visualize the coverage data in HTML:
 
-3. Merge the coverage data files and index them with the instrumented compiler code: 
-  
-   `$ llvm-profdata merge -sparse run1.profraw run2.profraw -o runs.profdata`
-
-4. Visualize the coverage data in HTML:
-
-   `$ llvm-cov show target/.../compiler --format=html -instr-profile=runs.profdata > index.html`
+   ```
+   $ llvm-cov show target/.../compiler_fuzzer \
+       --format=html \
+       -instr-profile=fuzz/coverage/compiler_fuzzer/coverage.profdata \
+       > index.html
+   ```
    
    There are many visualization and coverage-report options available (see `llvm-cov show --help`).
-
-Note:
-- We recommend using at least LLVM 11 and a recent nightly version of the Rust toolchain. 
-  This code was tested with `1.51.0-nightly (2021-02-10)`.
-- Coverage information will be written to the `.profraw` file when `cargo fuzz` stops running after
-  
-    * the fuzzer reached the time limit or specified number of runs, or
-    * the fuzzer detected a crash.
-    
-  In particular, terminating the fuzzer with ctrl+c will produce an empty `.profraw` coverage-data file.
-  One way to ensure that coverage information is generated is to use the `--max_total_time=<seconds>` or `--runs=<number>` libfuzzer options.
-  Another option is to add `%c` to the name of the coverage-output file: this way, coverage information is
-  [continuously written to the file](https://doc.rust-lang.org/beta/unstable-book/compiler-flags/source-based-code-coverage.html#running-the-instrumented-binary-to-generate-raw-coverage-profiling-data).
-  However, this works only on certain platforms.
 
 ## Trophy case
 
