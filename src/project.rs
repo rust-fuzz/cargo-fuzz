@@ -615,8 +615,6 @@ impl FuzzProject {
 
         self.merge_coverage(&coverage_out_raw_dir, &coverage_out_file)?;
 
-        eprintln!("Coverage data saved in {:?}.", coverage_out_file);
-
         Ok(())
     }
 
@@ -627,8 +625,6 @@ impl FuzzProject {
         input_file: &Path,
     ) -> Result<(Command, String)> {
         let mut cmd = self.cargo_run(&coverage.build, &coverage.target)?;
-
-        // TODO (MRA) Document in README that we need cargo-cov
 
         // Raw coverage data will be saved in `coverage/<target>` directory.
         let input_file_name = input_file
@@ -660,11 +656,11 @@ impl FuzzProject {
             merge_cmd.arg(raw_file?.path());
         }
         merge_cmd.arg("-o").arg(profdata_out_path);
-        println!("Executing {:?}", merge_cmd);
-        println!("Merging raw coverage data...");
+        eprintln!("Merging raw coverage data...");
         merge_cmd
             .output()
             .with_context(|| "Merging raw coverage files failed.")?;
+        eprintln!("Coverage data saved in {:?}.", profdata_out_path);
         Ok(())
     }
 
