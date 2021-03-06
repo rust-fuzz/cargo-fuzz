@@ -51,7 +51,7 @@ Minify your corpus of input files!
 
 ### `cargo fuzz coverage <target>`
 
-Generate coverage information about fuzzed program!
+Generate coverage information on the fuzzed program!
 
 ## Documentation
 
