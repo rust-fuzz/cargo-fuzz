@@ -79,7 +79,7 @@ After you fuzzed your program, use the `coverage` command to generate precise
 [source-based code coverage](https://blog.rust-lang.org/inside-rust/2020/11/12/source-based-code-coverage.html)
 information:
 ```
-$ cargo fuzz coverage <target> [corpus dir]
+$ cargo fuzz coverage <target> [corpus dirs] [-- <args>]
 ```
 This command
 
@@ -95,16 +95,24 @@ as described in the [Unstable book](https://doc.rust-lang.org/beta/unstable-book
 
 Suppose we have a `compiler` fuzz target for which we want to visualize code coverage.
 
-1. Run the fuzzer on the `compiler_fuzzer` target:
+1. Run the fuzzer on the `compiler` target:
 
-   `$ cargo fuzz run compiler_fuzzer`
+   ```
+   $ cargo fuzz run compiler
+   ```
+
+2. Produce code-coverage information:
+
+   ```
+   $ cargo fuzz coverage compiler
+   ```
 
 2. Visualize the coverage data in HTML:
 
    ```
-   $ llvm-cov show target/.../compiler_fuzzer \
+   $ llvm-cov show target/.../compiler \
        --format=html \
-       -instr-profile=fuzz/coverage/compiler_fuzzer/coverage.profdata \
+       -instr-profile=fuzz/coverage/compiler/coverage.profdata \
        > index.html
    ```
    
