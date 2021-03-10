@@ -8,7 +8,6 @@ pub struct Cmin {
     #[structopt(flatten)]
     pub build: BuildOptions,
 
-    #[structopt(required(true))]
     /// Name of the fuzz target
     pub target: String,
 

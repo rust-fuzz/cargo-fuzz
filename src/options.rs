@@ -119,6 +119,9 @@ pub struct BuildOptions {
     #[structopt(skip = false)]
     /// Instrument program code with source-based code coverage information.
     /// This build option will be automatically used when running `cargo fuzz coverage`.
+    /// The option will not be shown to the user, which is ensured by the `skip` attribute.
+    /// The attribute takes a default value `false`, ensuring that by default,
+    /// the coverage option will be disabled).
     pub coverage: bool,
 }
 
