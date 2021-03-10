@@ -110,7 +110,7 @@ Suppose we have a `compiler` fuzz target for which we want to visualize code cov
 2. Visualize the coverage data in HTML:
 
    ```
-   $ llvm-cov show target/.../compiler \
+   $ cargo cov -- show target/.../compiler \
        --format=html \
        -instr-profile=fuzz/coverage/compiler/coverage.profdata \
        > index.html

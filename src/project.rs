@@ -626,7 +626,8 @@ impl FuzzProject {
             let (mut cmd, file_name) =
                 self.create_coverage_cmd(coverage, &coverage_out_raw_dir, &input_file.path())?;
             eprintln!("Generating coverage data for {:?}", file_name);
-            let status = cmd.status()
+            let status = cmd
+                .status()
                 .with_context(|| format!("failed to run command: {:?}", cmd))?;
             if !status.success() {
                 bail!("failed to generate coverage data: {}", status);
