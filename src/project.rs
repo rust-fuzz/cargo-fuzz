@@ -588,10 +588,10 @@ impl FuzzProject {
 
     /// Produce coverage information for a given corpus
     pub fn exec_coverage(self, coverage: &options::Coverage) -> Result<()> {
-        // Build project with source-based coverage generation enabled
+        // Build project with source-based coverage generation enabled.
         self.exec_build(&coverage.build, Some(&coverage.target))?;
 
-        // Retrieve corpus directories
+        // Retrieve corpus directories.
         let corpora = if coverage.corpus.is_empty() {
             vec![self.corpus_for(&coverage.target)?]
         } else {
@@ -602,7 +602,7 @@ impl FuzzProject {
                 .collect()
         };
 
-        // Collect the (non-directory) readable input files from the corpora
+        // Collect the (non-directory) readable input files from the corpora.
         let files_and_dirs = corpora.iter().flat_map(fs::read_dir).flatten().flatten();
         let mut readable_input_files = files_and_dirs
             .filter(|file| match file.file_type() {
@@ -621,7 +621,7 @@ impl FuzzProject {
 
         let (coverage_out_raw_dir, coverage_out_file) = self.coverage_for(&coverage.target)?;
 
-        // Generating individual coverage data for all files in corpora
+        // Generating individual coverage data for all files in corpora.
         for input_file in readable_input_files {
             let (mut cmd, file_name) =
                 self.create_coverage_cmd(coverage, &coverage_out_raw_dir, &input_file.path())?;
