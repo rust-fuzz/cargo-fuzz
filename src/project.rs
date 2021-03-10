@@ -628,9 +628,14 @@ impl FuzzProject {
             eprintln!("Generating coverage data for {:?}", file_name);
             let status = cmd
                 .status()
-                .with_context(|| format!("failed to run command: {:?}", cmd))?;
+                .with_context(|| format!("Failed to run command: {:?}", cmd))?;
             if !status.success() {
-                bail!("failed to generate coverage data: {}", status);
+                Err(anyhow!(
+                    "Command exited with failure status {}: {:?}",
+                    status,
+                    cmd
+                ))
+                .context("Failed to generage coverage data")?;
             }
         }
 
@@ -677,10 +682,24 @@ impl FuzzProject {
             merge_cmd.arg(raw_file?.path());
         }
         merge_cmd.arg("-o").arg(profdata_out_path);
+
         eprintln!("Merging raw coverage data...");
-        merge_cmd
-            .output()
-            .with_context(|| "Merging raw coverage files failed.")?;
+        let status = merge_cmd
+            .status()
+            .with_context(|| format!("Failed to run command: {:?}", merge_cmd))
+            .with_context(|| "Merging raw coverage files failed.\n\
+                              \n\
+                              Do you have LLVM coverage tools installed?\n\
+                              https://doc.rust-lang.org/beta/unstable-book/compiler-flags/source-based-code-coverage.html#installing-llvm-coverage-tools")?;
+        if !status.success() {
+            Err(anyhow!(
+                "Command exited with failure status {}: {:?}",
+                status,
+                merge_cmd
+            ))
+            .context("Merging raw coverage files failed")?;
+        }
+
         if profdata_out_path.exists() {
             eprintln!("Coverage data merged and saved in {:?}.", profdata_out_path);
             Ok(())
