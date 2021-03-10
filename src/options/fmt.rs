@@ -9,11 +9,9 @@ pub struct Fmt {
     #[structopt(flatten)]
     pub build: BuildOptions,
 
-    #[structopt(required = true)]
     /// Name of fuzz target
     pub target: String,
 
-    #[structopt(required = true)]
     /// Path to the input testcase to debug print
     pub input: PathBuf,
 }

@@ -17,5 +17,7 @@ jobs:
         rustup install nightly
         rustup default nightly
         rustup component add rust-src
+        rustup component add llvm-tools-preview
+        cargo install cargo-binutils
         export RUST_BACKTRACE=1
         cargo test --verbose

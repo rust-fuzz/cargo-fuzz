@@ -1,4 +1,5 @@
 use crate::options::{self, BuildOptions, Sanitizer};
+use crate::utils::default_target;
 use anyhow::{anyhow, bail, Context, Result};
 use std::collections::HashSet;
 use std::io::Read;
@@ -164,6 +165,11 @@ impl FuzzProject {
                                      -Cllvm-args=-sanitizer-coverage-pc-table \
                                      -Clink-dead-code"
             .to_owned();
+
+        if build.coverage {
+            rustflags.push_str(" -Zinstrument-coverage");
+        }
+
         match build.sanitizer {
             Sanitizer::None => {}
             Sanitizer::Memory => {
@@ -258,6 +264,14 @@ impl FuzzProject {
         }
 
         if let Some(target_dir) = &build.target_dir {
+            cmd.arg("--target-dir").arg(target_dir);
+        } else if build.coverage {
+            // To ensure that fuzzing and coverage-output generation can run in parallel, we
+            // produce a separate binary for the coverage command.
+            let target_dir = env::current_dir()?
+                .join("target")
+                .join(default_target())
+                .join("coverage");
             cmd.arg("--target-dir").arg(target_dir);
         }
 
@@ -481,12 +495,12 @@ impl FuzzProject {
             eprintln!("\n{:─<80}\n", "");
             return Err(anyhow!("Command `{:?}` exited with {}", cmd, status)).with_context(|| {
                 "Test case minimization failed.\n\
-                     \n\
-                     Usually this isn't a hard error, and just means that libfuzzer\n\
-                     doesn't know how to minimize the test case any further while\n\
-                     still reproducing the original crash.\n\
-                     \n\
-                     See the logs above for details."
+                 \n\
+                 Usually this isn't a hard error, and just means that libfuzzer\n\
+                 doesn't know how to minimize the test case any further while\n\
+                 still reproducing the original crash.\n\
+                 \n\
+                 See the logs above for details."
             });
         }
 
@@ -572,12 +586,129 @@ impl FuzzProject {
         Ok(())
     }
 
+    /// Produce coverage information for a given corpus
+    pub fn exec_coverage(self, coverage: &options::Coverage) -> Result<()> {
+        // Build project with source-based coverage generation enabled
+        self.exec_build(&coverage.build, Some(&coverage.target))?;
+
+        // Retrieve corpus directories
+        let corpora = if coverage.corpus.is_empty() {
+            vec![self.corpus_for(&coverage.target)?]
+        } else {
+            coverage
+                .corpus
+                .iter()
+                .map(|name| Path::new(name).to_path_buf())
+                .collect()
+        };
+
+        // Collect the (non-directory) readable input files from the corpora
+        let files_and_dirs = corpora.iter().flat_map(fs::read_dir).flatten().flatten();
+        let mut readable_input_files = files_and_dirs
+            .filter(|file| match file.file_type() {
+                Ok(ft) => ft.is_file(),
+                _ => false,
+            })
+            .peekable();
+        if readable_input_files.peek().is_none() {
+            bail!(
+                "The corpus does not contain program-input files. \
+                 Coverage information requires existing input files. \
+                 Try running the fuzzer first (`cargo fuzz run ...`) to generate a corpus, \
+                 or provide a nonempty corpus directory."
+            )
+        }
+
+        let (coverage_out_raw_dir, coverage_out_file) = self.coverage_for(&coverage.target)?;
+
+        // Generating individual coverage data for all files in corpora
+        for input_file in readable_input_files {
+            let (mut cmd, file_name) =
+                self.create_coverage_cmd(coverage, &coverage_out_raw_dir, &input_file.path())?;
+            eprintln!("Generating coverage data for {:?}", file_name);
+            let status = cmd
+                .status()
+                .with_context(|| format!("failed to run command: {:?}", cmd))?;
+            if !status.success() {
+                bail!("failed to generate coverage data: {}", status);
+            }
+        }
+
+        self.merge_coverage(&coverage_out_raw_dir, &coverage_out_file)?;
+
+        Ok(())
+    }
+
+    fn create_coverage_cmd(
+        &self,
+        coverage: &options::Coverage,
+        coverage_dir: &Path,
+        input_file: &Path,
+    ) -> Result<(Command, String)> {
+        let mut cmd = self.cargo_run(&coverage.build, &coverage.target)?;
+
+        // Raw coverage data will be saved in `coverage/<target>` directory.
+        let input_file_name = input_file
+            .file_name()
+            .and_then(|x| x.to_str())
+            .with_context(|| format!("Corpus contains file with invalid name {:?}", input_file))?;
+        cmd.env(
+            "LLVM_PROFILE_FILE",
+            coverage_dir.join(format!("default-{}.profraw", input_file_name)),
+        );
+        cmd.arg(input_file);
+
+        for arg in &coverage.args {
+            cmd.arg(arg);
+        }
+
+        Ok((cmd, input_file_name.to_string()))
+    }
+
+    fn merge_coverage(&self, profdata_raw_path: &Path, profdata_out_path: &Path) -> Result<()> {
+        let mut merge_cmd = Command::new(cargo_binutils::Tool::Profdata.path()?);
+        merge_cmd.arg("merge").arg("-sparse");
+        for raw_file in fs::read_dir(profdata_raw_path).with_context(|| {
+            format!(
+                "failed to read directory entries of {}",
+                profdata_raw_path.display()
+            )
+        })? {
+            merge_cmd.arg(raw_file?.path());
+        }
+        merge_cmd.arg("-o").arg(profdata_out_path);
+        eprintln!("Merging raw coverage data...");
+        merge_cmd
+            .output()
+            .with_context(|| "Merging raw coverage files failed.")?;
+        if profdata_out_path.exists() {
+            eprintln!("Coverage data merged and saved in {:?}.", profdata_out_path);
+            Ok(())
+        } else {
+            bail!("Coverage data could not be merged.")
+        }
+    }
+
     fn path(&self) -> PathBuf {
         self.root_project.join("fuzz")
     }
 
     fn manifest_path(&self) -> PathBuf {
         self.path().join("Cargo.toml")
+    }
+
+    /// Returns paths to the `coverage/<target>/raw` directory and `coverage/<target>/coverage.profdata` file.
+    fn coverage_for(&self, target: &str) -> Result<(PathBuf, PathBuf)> {
+        let mut coverage_data = self.path();
+        coverage_data.push("coverage");
+        coverage_data.push(target);
+        let mut coverage_raw = coverage_data.clone();
+        coverage_data.push("coverage.profdata");
+        coverage_raw.push("raw");
+        fs::create_dir_all(&coverage_raw).with_context(|| {
+            format!("could not make a coverage directory at {:?}", coverage_raw)
+        })?;
+        Ok((coverage_raw, coverage_data))
     }
 
     fn corpus_for(&self, target: &str) -> Result<PathBuf> {

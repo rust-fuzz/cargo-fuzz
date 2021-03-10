@@ -136,6 +136,9 @@ enum Command {
 
     /// Minify a test case
     Tmin(options::Tmin),
+
+    /// Run program on the generated corpus and generate coverage information
+    Coverage(options::Coverage),
 }
 
 impl RunCommand for Command {
@@ -149,6 +152,7 @@ impl RunCommand for Command {
             Command::Run(x) => x.run_command(),
             Command::Cmin(x) => x.run_command(),
             Command::Tmin(x) => x.run_command(),
+            Command::Coverage(x) => x.run_command(),
         }
     }
 }
