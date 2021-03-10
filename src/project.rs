@@ -1,4 +1,5 @@
 use crate::options::{self, BuildOptions, Sanitizer};
+use crate::utils::default_target;
 use anyhow::{anyhow, bail, Context, Result};
 use std::collections::HashSet;
 use std::io::Read;
@@ -264,6 +265,14 @@ impl FuzzProject {
 
         if let Some(target_dir) = &build.target_dir {
             cmd.arg("--target-dir").arg(target_dir);
+        } else if build.coverage {
+            // To ensure that fuzzing and coverage-output generation can run in parallel, we
+            // produce a separate binary for the coverage command.
+            let target_dir = env::current_dir()?
+                .join("target")
+                .join(default_target())
+                .join("coverage");
+            cmd.arg("--target-dir").arg(target_dir);
         }
 
         let status = cmd
@@ -486,12 +495,12 @@ impl FuzzProject {
             eprintln!("\n{:─<80}\n", "");
             return Err(anyhow!("Command `{:?}` exited with {}", cmd, status)).with_context(|| {
                 "Test case minimization failed.\n\
-                     \n\
-                     Usually this isn't a hard error, and just means that libfuzzer\n\
-                     doesn't know how to minimize the test case any further while\n\
-                     still reproducing the original crash.\n\
-                     \n\
-                     See the logs above for details."
+                 \n\
+                 Usually this isn't a hard error, and just means that libfuzzer\n\
+                 doesn't know how to minimize the test case any further while\n\
+                 still reproducing the original crash.\n\
+                 \n\
+                 See the logs above for details."
             });
         }
 
