@@ -1,6 +1,13 @@
 use crate::options::{self, BuildOptions, Sanitizer};
 use crate::utils::default_target;
 use anyhow::{anyhow, bail, Context, Result};
+use cargo::{
+    core::{
+        compiler::{CompileKind, CompileTarget, RustcTargetData},
+        Workspace,
+    },
+    CargoResult,
+};
 use std::collections::HashSet;
 use std::io::Read;
 use std::io::Write;
@@ -201,7 +208,7 @@ impl FuzzProject {
             rustflags.push_str(" -C codegen-units=1");
         }
 
-        if let Ok(other_flags) = env::var("RUSTFLAGS") {
+        if let Ok(other_flags) = cargo_rustflags(&self.manifest_path(), &build.triple) {
             rustflags.push_str(" ");
             rustflags.push_str(&other_flags);
         }
@@ -880,4 +887,14 @@ fn strip_current_dir_prefix(path: &Path) -> &Path {
         .ok()
         .and_then(|curdir| path.strip_prefix(curdir).ok())
         .unwrap_or(&path)
+}
+
+fn cargo_rustflags(manifest_path: &Path, target: &str) -> CargoResult<String> {
+    let config = cargo::Config::default()?;
+    let ws = Workspace::new(manifest_path, &config)?;
+    let target = CompileTarget::new(target)?;
+    let kind = CompileKind::Target(target);
+    let target_data = RustcTargetData::new(&ws, &[kind])?;
+
+    Ok(target_data.info(kind).rustflags.join(" "))
 }

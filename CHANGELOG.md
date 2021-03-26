@@ -4,7 +4,7 @@ Released YYYY-MM-DD.
 
 ### Added
 
-* TODO (or remove section if none)
+* Added support for rustflags set in a cargo config file.
 
 ### Changed
 
