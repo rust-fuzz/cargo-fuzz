@@ -673,14 +673,7 @@ impl FuzzProject {
     fn merge_coverage(&self, profdata_raw_path: &Path, profdata_out_path: &Path) -> Result<()> {
         let mut merge_cmd = Command::new(cargo_binutils::Tool::Profdata.path()?);
         merge_cmd.arg("merge").arg("-sparse");
-        for raw_file in fs::read_dir(profdata_raw_path).with_context(|| {
-            format!(
-                "failed to read directory entries of {}",
-                profdata_raw_path.display()
-            )
-        })? {
-            merge_cmd.arg(raw_file?.path());
-        }
+        merge_cmd.arg(profdata_raw_path);
         merge_cmd.arg("-o").arg(profdata_out_path);
 
         eprintln!("Merging raw coverage data...");
