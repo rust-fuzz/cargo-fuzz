@@ -810,3 +810,29 @@ fn build_dev() {
     assert!(a_bin.is_file());
     assert!(b_bin.is_file());
 }
+
+#[test]
+fn build_stripping_dead_code() {
+    let project = project("build_strip").with_fuzz().build();
+
+    // Create some targets.
+    project
+        .cargo_fuzz()
+        .arg("add")
+        .arg("build_strip_a")
+        .assert()
+        .success();
+
+    project
+        .cargo_fuzz()
+        .arg("build")
+        .arg("--strip-dead-code")
+        .arg("--dev")
+        .assert()
+        .success();
+
+    let build_dir = project.fuzz_build_dir().join("debug");
+
+    let a_bin = build_dir.join("build_strip_a");
+    assert!(a_bin.is_file(), "Not a file: {}", a_bin.display());
+}

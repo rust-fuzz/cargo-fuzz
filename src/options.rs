@@ -123,6 +123,11 @@ pub struct BuildOptions {
     /// The attribute takes a default value `false`, ensuring that by default,
     /// the coverage option will be disabled).
     pub coverage: bool,
+
+    /// Dead code is linked by default to prevent a potential error with some
+    /// optimized targets. This flag allows you to opt out of it.
+    #[structopt(long)]
+    pub strip_dead_code: bool,
 }
 
 impl stdfmt::Display for BuildOptions {
@@ -200,6 +205,7 @@ mod test {
             unstable_flags: Vec::new(),
             target_dir: None,
             coverage: false,
+            strip_dead_code: false,
         };
 
         let opts = vec![
