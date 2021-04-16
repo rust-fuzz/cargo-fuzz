@@ -162,9 +162,12 @@ impl FuzzProject {
                                      -Cllvm-args=-sanitizer-coverage-level=4 \
                                      -Cllvm-args=-sanitizer-coverage-trace-compares \
                                      -Cllvm-args=-sanitizer-coverage-inline-8bit-counters \
-                                     -Cllvm-args=-sanitizer-coverage-pc-table \
-                                     -Clink-dead-code"
+                                     -Cllvm-args=-sanitizer-coverage-pc-table"
             .to_owned();
+
+        if !build.strip_dead_code {
+            rustflags.push_str(" -Clink-dead-code");
+        }
 
         if build.coverage {
             rustflags.push_str(" -Zinstrument-coverage");
