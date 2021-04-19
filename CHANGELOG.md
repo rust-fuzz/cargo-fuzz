@@ -28,6 +28,29 @@ Released YYYY-MM-DD.
 
 --------------------------------------------------------------------------------
 
+## 0.10.1
+
+Released 2020-04-19.
+
+### Added
+
+* Added the `--strip-dead-code` to allow stripping dead code in the linker.
+
+  By default, dead code is linked because LLVM's code coverage instrumentation
+  assumes it is present in the coverage maps for some targets. Some code bases,
+  however, require stripping dead code to avoid "undefined symbol" linker
+  errors. This flag allows controlling whether dead code is stipped or not in
+  your build. [#260](https://github.com/rust-fuzz/cargo-fuzz/pull/260)
+
+### Fixed
+
+* The `cargo fuzz coverage` subcommand now passes the raw coverage files to the
+  `llvm-profdata` command as a whole directory, rather than as individual files,
+  which avoids an issue where too many command-line arguments were provided in
+  some scenarios. [#258](https://github.com/rust-fuzz/cargo-fuzz/pull/258)
+
+--------------------------------------------------------------------------------
+
 ## 0.10.0
 
 Released 2021-03-10.
