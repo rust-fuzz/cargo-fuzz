@@ -1,7 +1,7 @@
 <div align="center">
   <h1><code>cargo fuzz</code></h1>
 
-  <p><b>A <code>cargo</code> subcommand for using <code>libFuzzer</code>! Easy to use! No need to recompile LLVM!</b></p>
+  <p><b>A <code>cargo</code> subcommand for fuzzing with <code>libFuzzer</code>! Easy to use!</b></p>
 </div>
 
 ## Installation
