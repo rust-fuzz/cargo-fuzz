@@ -11,22 +11,26 @@ use std::{
     time,
 };
 
+const DEFAULT_FUZZ_DIR: &str = "fuzz";
+
 pub struct FuzzProject {
-    /// Path to the root cargo project
-    ///
-    /// Not the project with fuzz targets, but the project being fuzzed
-    root_project: PathBuf,
+    /// The project with fuzz targets
+    fuzz_dir: PathBuf,
+    /// The project being fuzzed
+    project_dir: PathBuf,
     targets: Vec<String>,
 }
 
 impl FuzzProject {
+    /// Creates a new instance.
+    //
     /// Find an existing `cargo fuzz` project by starting at the current
     /// directory and walking up the filesystem.
-    pub fn find_existing() -> Result<Self> {
-        let mut project = FuzzProject {
-            root_project: find_package()?,
-            targets: Vec::new(),
-        };
+    ///
+    /// If `fuzz_dir_opt` is `None`, returns a new instance with the default fuzz project
+    /// path.
+    pub fn new(fuzz_dir_opt: Option<PathBuf>) -> Result<Self> {
+        let mut project = Self::manage_initial_instance(fuzz_dir_opt)?;
         let manifest = project.manifest()?;
         if !is_fuzz_manifest(&manifest) {
             bail!(
@@ -41,15 +45,13 @@ impl FuzzProject {
         Ok(project)
     }
 
-    /// Create the fuzz project structure
+    /// Creates the fuzz project structure and returns a new instance.
     ///
-    /// This will not clone libfuzzer-sys
-    pub fn init(init: &options::Init) -> Result<Self> {
-        let project = FuzzProject {
-            root_project: find_package()?,
-            targets: Vec::new(),
-        };
-        let fuzz_project = project.path();
+    /// This will not clone libfuzzer-sys.
+    /// Similar to `FuzzProject::new`, the fuzz directory will depend on `fuzz_dir_opt`.
+    pub fn init(init: &options::Init, fuzz_dir_opt: Option<PathBuf>) -> Result<Self> {
+        let project = Self::manage_initial_instance(fuzz_dir_opt)?;
+        let fuzz_project = project.fuzz_dir();
         let root_project_name = project.root_project_name()?;
 
         // TODO: check if the project is already initialized
@@ -568,7 +570,7 @@ impl FuzzProject {
             .ok_or_else(|| anyhow!("corpus must be valid unicode"))?
             .to_owned();
 
-        let tmp = tempfile::TempDir::new_in(self.path())?;
+        let tmp = tempfile::TempDir::new_in(self.fuzz_dir())?;
         let tmp_corpus = tmp.path().join("corpus");
         fs::create_dir(&tmp_corpus)?;
 
@@ -704,17 +706,17 @@ impl FuzzProject {
         }
     }
 
-    fn path(&self) -> PathBuf {
-        self.root_project.join("fuzz")
+    fn fuzz_dir(&self) -> &Path {
+        &self.fuzz_dir
     }
 
     fn manifest_path(&self) -> PathBuf {
-        self.path().join("Cargo.toml")
+        self.fuzz_dir().join("Cargo.toml")
     }
 
     /// Returns paths to the `coverage/<target>/raw` directory and `coverage/<target>/coverage.profdata` file.
     fn coverage_for(&self, target: &str) -> Result<(PathBuf, PathBuf)> {
-        let mut coverage_data = self.path();
+        let mut coverage_data = self.fuzz_dir().to_owned();
         coverage_data.push("coverage");
         coverage_data.push(target);
         let mut coverage_raw = coverage_data.clone();
@@ -727,7 +729,7 @@ impl FuzzProject {
     }
 
     fn corpus_for(&self, target: &str) -> Result<PathBuf> {
-        let mut p = self.path();
+        let mut p = self.fuzz_dir().to_owned();
         p.push("corpus");
         p.push(target);
         fs::create_dir_all(&p)
@@ -736,7 +738,7 @@ impl FuzzProject {
     }
 
     fn artifacts_for(&self, target: &str) -> Result<PathBuf> {
-        let mut p = self.path();
+        let mut p = self.fuzz_dir().to_owned();
         p.push("artifacts");
         p.push(target);
 
@@ -751,7 +753,7 @@ impl FuzzProject {
     }
 
     fn fuzz_targets_dir(&self) -> PathBuf {
-        let mut root = self.path();
+        let mut root = self.fuzz_dir().to_owned();
         if root.join(crate::FUZZ_TARGETS_DIR_OLD).exists() {
             println!(
                 "warning: The `fuzz/fuzzers/` directory has renamed to `fuzz/fuzz_targets/`. \
@@ -787,7 +789,7 @@ impl FuzzProject {
     }
 
     fn root_project_name(&self) -> Result<String> {
-        let filename = self.root_project.join("Cargo.toml");
+        let filename = self.project_dir.join("Cargo.toml");
         let mut file = fs::File::open(&filename)?;
         let mut data = Vec::new();
         file.read_to_end(&mut data)?;
@@ -803,6 +805,22 @@ impl FuzzProject {
         } else {
             bail!("{} (package.name) is malformed", filename.display());
         }
+    }
+
+    // If `fuzz_dir_opt` is `None`, returns a new instance with the default fuzz project
+    // path. Otherwise, returns a new instance with the inner content of `fuzz_dir_opt`.
+    fn manage_initial_instance(fuzz_dir_opt: Option<PathBuf>) -> Result<Self> {
+        let project_dir = find_package()?;
+        let fuzz_dir = if let Some(el) = fuzz_dir_opt {
+            el
+        } else {
+            project_dir.join(DEFAULT_FUZZ_DIR)
+        };
+        Ok(FuzzProject {
+            fuzz_dir,
+            project_dir,
+            targets: Vec::new(),
+        })
     }
 }
 

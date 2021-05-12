@@ -25,12 +25,17 @@ pub fn next_root() -> PathBuf {
 }
 
 pub fn project(name: &str) -> ProjectBuilder {
-    ProjectBuilder::new(name, next_root())
+    ProjectBuilder::new(name, next_root(), None)
+}
+
+pub fn project_with_params(name: &str, root: PathBuf, fuzz_dir: PathBuf) -> ProjectBuilder {
+    ProjectBuilder::new(name, root, Some(fuzz_dir))
 }
 
 pub struct Project {
     name: String,
     root: PathBuf,
+    fuzz_dir: PathBuf,
 }
 
 pub struct ProjectBuilder {
@@ -40,14 +45,16 @@ pub struct ProjectBuilder {
 }
 
 impl ProjectBuilder {
-    pub fn new(name: &str, root: PathBuf) -> ProjectBuilder {
+    pub fn new(name: &str, root: PathBuf, fuzz_dir_opt: Option<PathBuf>) -> ProjectBuilder {
         println!(" ============ {} =============== ", root.display());
         drop(fs::remove_dir_all(&root));
         fs::create_dir_all(&root).unwrap();
+        let fuzz_dir = fuzz_dir_opt.unwrap_or_else(|| root.join("fuzz"));
         ProjectBuilder {
             project: Project {
                 name: name.to_string(),
                 root,
+                fuzz_dir,
             },
             saw_manifest: false,
             saw_main_or_lib: false,
@@ -60,7 +67,7 @@ impl ProjectBuilder {
 
     pub fn with_fuzz(&mut self) -> &mut Self {
         self.file(
-            Path::new("fuzz").join("Cargo.toml"),
+            self.project.fuzz_dir.join("Cargo.toml"),
             &format!(
                 r#"
                     [package]
@@ -93,7 +100,7 @@ impl ProjectBuilder {
         let mut fuzz_cargo_toml = fs::OpenOptions::new()
             .write(true)
             .append(true)
-            .open(self.project.fuzz_dir().join("Cargo.toml"))
+            .open(self.project.fuzz_dir.join("Cargo.toml"))
             .unwrap();
         write!(
             &mut fuzz_cargo_toml,
@@ -168,6 +175,7 @@ impl ProjectBuilder {
             self.default_src_lib();
         }
         Project {
+            fuzz_dir: self.project.fuzz_dir.clone(),
             name: self.project.name.clone(),
             root: self.project.root.clone(),
         }
@@ -200,16 +208,16 @@ impl Project {
             .unwrap()
     }
 
-    pub fn fuzz_dir(&self) -> PathBuf {
-        self.root().join("fuzz")
+    pub fn fuzz_dir(&self) -> &Path {
+        &self.fuzz_dir
     }
 
     pub fn fuzz_cargo_toml(&self) -> PathBuf {
-        self.root().join("fuzz").join("Cargo.toml")
+        self.fuzz_dir.join("Cargo.toml")
     }
 
     pub fn fuzz_targets_dir(&self) -> PathBuf {
-        self.root().join("fuzz").join("fuzz_targets")
+        self.fuzz_dir.join("fuzz_targets")
     }
 
     pub fn fuzz_target_path(&self, target: &str) -> PathBuf {
@@ -219,7 +227,7 @@ impl Project {
     }
 
     pub fn fuzz_coverage_dir(&self, target: &str) -> PathBuf {
-        self.fuzz_dir().join("coverage").join(target)
+        self.fuzz_dir.join("coverage").join(target)
     }
 
     pub fn cargo_fuzz(&self) -> Command {

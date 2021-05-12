@@ -836,3 +836,37 @@ fn build_stripping_dead_code() {
     let a_bin = build_dir.join("build_strip_a");
     assert!(a_bin.is_file(), "Not a file: {}", a_bin.display());
 }
+
+#[test]
+fn run_with_different_fuzz_dir() {
+    const FUZZ_DIR_NAME: &str = "dir_likes_to_move_it_move_it";
+
+    let next_root = next_root();
+    let fuzz_dir = next_root.join(FUZZ_DIR_NAME);
+
+    let project = project_with_params("project_likes_to_move_it", next_root, fuzz_dir.clone())
+        .with_fuzz()
+        .fuzz_target(
+            "you_like_to_move_it",
+            r#"
+                #![no_main]
+                use libfuzzer_sys::fuzz_target;
+
+                fuzz_target!(|_data: &[u8]| {
+                });
+            "#,
+        )
+        .build();
+
+    project
+        .cargo_fuzz()
+        .arg("run")
+        .arg("--fuzz-dir")
+        .arg(fuzz_dir)
+        .arg("you_like_to_move_it")
+        .arg("--")
+        .arg("-runs=1")
+        .assert()
+        .stderr(predicate::str::contains("Done 2 runs"))
+        .success();
+}
