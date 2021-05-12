@@ -13,8 +13,8 @@ pub use self::{
     run::Run, tmin::Tmin,
 };
 
-use std::fmt as stdfmt;
 use std::str::FromStr;
+use std::{fmt as stdfmt, path::PathBuf};
 use structopt::StructOpt;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -180,6 +180,23 @@ impl stdfmt::Display for BuildOptions {
 
         if self.coverage {
             write!(f, " --coverage")?;
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Clone, Debug, StructOpt, PartialEq)]
+pub struct FuzzDirWrapper {
+    /// The path to the fuzz project directory.
+    #[structopt(long = "fuzz-dir")]
+    pub fuzz_dir: Option<PathBuf>,
+}
+
+impl stdfmt::Display for FuzzDirWrapper {
+    fn fmt(&self, f: &mut stdfmt::Formatter) -> stdfmt::Result {
+        if let Some(ref elem) = self.fuzz_dir {
+            write!(f, " --fuzz-dir={}", elem.display())?;
         }
 
         Ok(())

@@ -1,4 +1,8 @@
-use crate::{options::BuildOptions, project::FuzzProject, RunCommand};
+use crate::{
+    options::{BuildOptions, FuzzDirWrapper},
+    project::FuzzProject,
+    RunCommand,
+};
 use anyhow::Result;
 use std::path::PathBuf;
 use structopt::StructOpt;
@@ -7,6 +11,9 @@ use structopt::StructOpt;
 pub struct Cmin {
     #[structopt(flatten)]
     pub build: BuildOptions,
+
+    #[structopt(flatten)]
+    pub fuzz_dir_wrapper: FuzzDirWrapper,
 
     /// Name of the fuzz target
     pub target: String,
@@ -22,7 +29,7 @@ pub struct Cmin {
 
 impl RunCommand for Cmin {
     fn run_command(&mut self) -> Result<()> {
-        let project = FuzzProject::find_existing()?;
+        let project = FuzzProject::new(self.fuzz_dir_wrapper.fuzz_dir.to_owned())?;
         project.exec_cmin(self)
     }
 }
