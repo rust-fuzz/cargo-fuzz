@@ -28,6 +28,18 @@ Released YYYY-MM-DD.
 
 --------------------------------------------------------------------------------
 
+## 0.10.2
+
+Released 2020-05-13.
+
+### Added
+
+* Added the `--fuzz-dir <dir>` flag to all subcommands, so that you can put your
+  fuzzing files in a directory other than `my_crate/fuzz` if you
+  want. [#262](https://github.com/rust-fuzz/cargo-fuzz/pull/262)
+
+--------------------------------------------------------------------------------
+
 ## 0.10.1
 
 Released 2020-04-19.
