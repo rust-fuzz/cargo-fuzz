@@ -459,14 +459,22 @@ impl FuzzProject {
                 eprintln!();
             }
 
+            let fuzz_dir = if self.fuzz_dir_is_default_path() {
+                String::new()
+            } else {
+                format!(" --fuzz-dir {}", self.fuzz_dir().display())
+            };
+
             eprintln!(
-                "Reproduce with:\n\n\tcargo fuzz run{options} {target} {artifact}\n",
+                "Reproduce with:\n\n\tcargo fuzz run{fuzz_dir}{options} {target} {artifact}\n",
+                fuzz_dir = &fuzz_dir,
                 options = &run.build,
                 target = &run.target,
                 artifact = artifact.display()
             );
             eprintln!(
-                "Minimize test case with:\n\n\tcargo fuzz tmin{options} {target} {artifact}\n",
+                "Minimize test case with:\n\n\tcargo fuzz tmin{fuzz_dir}{options} {target} {artifact}\n",
+                fuzz_dir = &fuzz_dir,
                 options = &run.build,
                 target = &run.target,
                 artifact = artifact.display()
@@ -821,6 +829,10 @@ impl FuzzProject {
             project_dir,
             targets: Vec::new(),
         })
+    }
+
+    fn fuzz_dir_is_default_path(&self) -> bool {
+        self.fuzz_dir.ends_with(DEFAULT_FUZZ_DIR)
     }
 }
 

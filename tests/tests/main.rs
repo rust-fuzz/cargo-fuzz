@@ -839,12 +839,11 @@ fn build_stripping_dead_code() {
 
 #[test]
 fn run_with_different_fuzz_dir() {
-    const FUZZ_DIR_NAME: &str = "dir_likes_to_move_it_move_it";
-
-    let next_root = next_root();
-    let fuzz_dir = next_root.join(FUZZ_DIR_NAME);
-
-    let project = project_with_params("project_likes_to_move_it", next_root, fuzz_dir.clone())
+    let (fuzz_dir, mut project_builder) = project_with_fuzz_dir(
+        "project_likes_to_move_it",
+        Some("dir_likes_to_move_it_move_it"),
+    );
+    let project = project_builder
         .with_fuzz()
         .fuzz_target(
             "you_like_to_move_it",
@@ -869,4 +868,57 @@ fn run_with_different_fuzz_dir() {
         .assert()
         .stderr(predicate::str::contains("Done 2 runs"))
         .success();
+}
+
+#[test]
+fn run_diagnostic_contains_fuzz_dir() {
+    let (fuzz_dir, mut project_builder) = project_with_fuzz_dir("run_with_crash", None);
+    let project = project_builder
+        .with_fuzz()
+        .fuzz_target(
+            "yes_crash",
+            r#"
+                #![no_main]
+                use libfuzzer_sys::fuzz_target;
+
+                fuzz_target!(|data: &[u8]| {
+                    run_with_crash::fail_fuzzing(data);
+                });
+            "#,
+        )
+        .build();
+
+    let run = format!(
+        "cargo fuzz run --fuzz-dir {} yes_crash custom_dir/artifacts/yes_crash",
+        &fuzz_dir
+    );
+
+    let tmin = format!(
+        "cargo fuzz tmin --fuzz-dir {} yes_crash custom_dir/artifacts/yes_crash",
+        &fuzz_dir
+    );
+
+    project
+        .cargo_fuzz()
+        .arg("run")
+        .arg("--fuzz-dir")
+        .arg(fuzz_dir)
+        .arg("yes_crash")
+        .arg("--")
+        .arg("-runs=1000")
+        .assert()
+        .stderr(predicates::str::contains(run).and(predicate::str::contains(tmin)))
+        .failure();
+}
+
+fn project_with_fuzz_dir(
+    project_name: &str,
+    fuzz_dir_opt: Option<&str>,
+) -> (String, ProjectBuilder) {
+    let fuzz_dir = fuzz_dir_opt.unwrap_or("custom_dir");
+    let next_root = next_root();
+    let fuzz_dir_pb = next_root.join(fuzz_dir);
+    let fuzz_dir_sting = fuzz_dir_pb.display().to_string();
+    let pb = project_with_params(project_name, next_root, fuzz_dir_pb);
+    (fuzz_dir_sting, pb)
 }
