@@ -1,8 +1,7 @@
 macro_rules! toml_template {
     ($name: expr) => {
         format_args!(
-            r##"
-[package]
+            r##"[package]
 name = "{0}-fuzz"
 version = "0.0.0"
 authors = ["Automatically generated"]
@@ -45,8 +44,7 @@ doc = false
 macro_rules! gitignore_template {
     () => {
         format_args!(
-            r##"
-target
+            r##"target
 corpus
 artifacts
 "##
