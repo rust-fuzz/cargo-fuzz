@@ -140,7 +140,7 @@ impl FuzzProject {
         if !build.dev {
             cmd.arg("--release");
         }
-        if build.verbose {
+        for _ in 0..build.verbose {
             cmd.arg("--verbose");
         }
         if build.no_default_features {
