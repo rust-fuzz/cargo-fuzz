@@ -196,6 +196,10 @@ impl FuzzProject {
         if !build.release || build.debug_assertions {
             rustflags.push_str(" -Cdebug-assertions");
         }
+        if build.triple.contains("-msvc") {
+            // The entrypoint is in the bundled libfuzzer rlib, this gets the linker to find it.
+            rustflags.push_str(" -Clink-arg=/include:main");
+        }
 
         // If release mode is enabled then we force 1 CGU to be used in rustc.
         // This will result in slower compilations but it looks like the sancov
