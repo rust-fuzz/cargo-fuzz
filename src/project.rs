@@ -159,13 +159,16 @@ impl FuzzProject {
             cmd.arg("-Z").arg("build-std");
         }
 
-        let mut rustflags: String = "--cfg fuzzing \
-                                     -Cpasses=sancov \
+        let mut rustflags: String = "-Cpasses=sancov \
                                      -Cllvm-args=-sanitizer-coverage-level=4 \
                                      -Cllvm-args=-sanitizer-coverage-trace-compares \
                                      -Cllvm-args=-sanitizer-coverage-inline-8bit-counters \
                                      -Cllvm-args=-sanitizer-coverage-pc-table"
             .to_owned();
+
+        if !build.no_cfg_fuzzing {
+            rustflags.push_str(" --cfg fuzzing");
+        }
 
         if !build.strip_dead_code {
             rustflags.push_str(" -Clink-dead-code");

@@ -128,6 +128,11 @@ pub struct BuildOptions {
     /// optimized targets. This flag allows you to opt out of it.
     #[structopt(long)]
     pub strip_dead_code: bool,
+
+    /// By default the 'cfg(fuzzing)' compilation configuration is set. This flag
+    /// allows you to opt out of it.
+    #[structopt(long)]
+    pub no_cfg_fuzzing: bool,
 }
 
 impl stdfmt::Display for BuildOptions {
@@ -223,6 +228,7 @@ mod test {
             target_dir: None,
             coverage: false,
             strip_dead_code: false,
+            no_cfg_fuzzing: false,
         };
 
         let opts = vec![
