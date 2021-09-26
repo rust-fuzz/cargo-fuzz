@@ -5,19 +5,24 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v1
-    - name: Check rustfmt
-      run: |
-        rustup component add rustfmt --toolchain stable
-        cargo +stable fmt --all -- --check
-    - name: Build
-      run: cargo build --verbose
-    - name: Run tests
-      run: |
-        rustup install nightly
-        rustup default nightly
-        rustup component add rust-src
-        rustup component add llvm-tools-preview
-        cargo install cargo-binutils
-        export RUST_BACKTRACE=1
-        cargo test --verbose
+    - uses: actions/checkout@v2
+    - uses: actions-rs/toolchain@v1
+      with:
+          toolchain: nightly
+          profile: minimal
+          default: true
+          components: rustfmt, rust-src, llvm-tools-preview
+    - uses: actions-rs/cargo@v1
+      with:
+        command: fmt
+        args: --all -- --check
+    - uses: actions-rs/cargo@v1
+      with:
+        command: install
+        args: cargo-binutils
+    - uses: actions-rs/cargo@v1
+      with:
+        command: test
+        args: --verbose
+      env:
+        RUST_BACKTRACE: 1
