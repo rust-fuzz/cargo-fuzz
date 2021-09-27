@@ -47,7 +47,6 @@ By default fuzz targets are built with optimizations equivalent to
 Address Sanitizer is also enabled by default.";
 
 const RUN_AFTER_HELP: &str = "\
-
 A full list of libFuzzer options can be found at
 http://llvm.org/docs/LibFuzzer.html#options
 
