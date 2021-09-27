@@ -159,7 +159,7 @@ impl FuzzProject {
             cmd.arg("-Z").arg("build-std");
         }
 
-        let mut rustflags: String = "-Cpasses=sancov \
+        let mut rustflags: String = "-Cpasses=sancov-module \
                                      -Cllvm-args=-sanitizer-coverage-level=4 \
                                      -Cllvm-args=-sanitizer-coverage-trace-compares \
                                      -Cllvm-args=-sanitizer-coverage-inline-8bit-counters \
