@@ -47,6 +47,7 @@ macro_rules! gitignore_template {
             r##"target
 corpus
 artifacts
+coverage
 "##
         )
     };
