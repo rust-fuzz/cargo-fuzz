@@ -4,7 +4,13 @@ Released YYYY-MM-DD.
 
 ### Added
 
-* TODO (or remove section if none)
+* Added the `--no-trace-compares` flag which opts out of the
+  `-sanitizer-coverage-trace-compares` LLVM argument.
+
+  Using this may improve fuzzer throughput at the cost of worse coverage accuracy.
+  It also allows older CPUs lacking the `popcnt` instruction to use `cargo-fuzz`;
+  the `*-trace-compares` instrumentation assumes that the instruction is
+  available.
 
 ### Changed
 

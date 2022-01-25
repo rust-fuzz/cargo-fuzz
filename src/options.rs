@@ -133,6 +133,15 @@ pub struct BuildOptions {
     /// allows you to opt out of it.
     #[structopt(long)]
     pub no_cfg_fuzzing: bool,
+
+    #[structopt(long)]
+    /// Don't build with the `sanitizer-coverage-trace-compares` LLVM argument
+    ///
+    ///  Using this may improve fuzzer throughput at the cost of worse coverage accuracy.
+    /// It also allows older CPUs lacking the `popcnt` instruction to use `cargo-fuzz`;
+    /// the `*-trace-compares` instrumentation assumes that the instruction is
+    /// available.
+    pub no_trace_compares: bool,
 }
 
 impl stdfmt::Display for BuildOptions {
@@ -229,6 +238,7 @@ mod test {
             coverage: false,
             strip_dead_code: false,
             no_cfg_fuzzing: false,
+            no_trace_compares: false,
         };
 
         let opts = vec![
