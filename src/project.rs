@@ -158,6 +158,8 @@ impl FuzzProject {
         }
         if let Sanitizer::Memory = build.sanitizer {
             cmd.arg("-Z").arg("build-std");
+        } else if build.build_std.unwrap_or(true) && !build.coverage {
+            cmd.arg("-Z").arg("build-std");
         }
 
         let mut rustflags: String = "-Cpasses=sancov-module \
