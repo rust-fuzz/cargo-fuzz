@@ -3,7 +3,7 @@ use crate::{
     project::FuzzProject,
     RunCommand,
 };
-use anyhow::Result;
+use anyhow::{bail, Result};
 use clap::Parser;
 
 #[derive(Clone, Debug, Parser)]
@@ -27,6 +27,12 @@ pub struct Coverage {
 
 impl RunCommand for Coverage {
     fn run_command(&mut self) -> Result<()> {
+        if self.build.build_std.unwrap_or(false) {
+            bail!(
+                "-Zbuild-std is currently incompatible with -Zinstrument-coverage, \
+                see https://github.com/rust-lang/wg-cargo-std-aware/issues/63"
+            );
+        }
         let project = FuzzProject::new(self.fuzz_dir_wrapper.fuzz_dir.to_owned())?;
         self.build.coverage = true;
         project.exec_coverage(self)
