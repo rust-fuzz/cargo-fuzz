@@ -178,7 +178,7 @@ impl FuzzProject {
         }
 
         if build.coverage {
-            rustflags.push_str(" -Zinstrument-coverage");
+            rustflags.push_str(" -Cinstrument-coverage");
         }
 
         match build.sanitizer {
