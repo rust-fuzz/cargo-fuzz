@@ -7,5 +7,5 @@ fn main() {
     println!("cargo:rustc-env=TARGET={}", env::var("TARGET").unwrap());
     // By default Cargo only runs the build script when a file changes.
     // This makes it re-run on target change
-     println!("cargo:rerun-if-changed-env=TARGET")
+    println!("cargo:rerun-if-changed-env=TARGET")
 }
