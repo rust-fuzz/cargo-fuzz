@@ -11,6 +11,7 @@ edition = "2018"
 
 [dependencies]
 anyhow = "1.0.25"
+current_platform = "0.2.0"
 structopt = "0.3.5"
 tempfile = "3.1.0"
 toml = "0.5.5"
