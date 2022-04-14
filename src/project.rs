@@ -706,7 +706,7 @@ impl FuzzProject {
             .with_context(|| "Merging raw coverage files failed.\n\
                               \n\
                               Do you have LLVM coverage tools installed?\n\
-                              https://doc.rust-lang.org/beta/unstable-book/compiler-flags/source-based-code-coverage.html#installing-llvm-coverage-tools")?;
+                              https://doc.rust-lang.org/rustc/instrument-coverage.html#installing-llvm-coverage-tools")?;
         if !status.success() {
             Err(anyhow!(
                 "Command exited with failure status {}: {:?}",
