@@ -551,8 +551,8 @@ fn debug_fmt() {
                     b: u8,
                 }
 
-                impl Arbitrary for Rgb {
-                    fn arbitrary(raw: &mut Unstructured<'_>) -> Result<Self> {
+                impl<'a> Arbitrary<'a> for Rgb {
+                    fn arbitrary(raw: &mut Unstructured<'a>) -> Result<Self> {
                         let mut buf = [0; 3];
                         raw.fill_buffer(&mut buf)?;
                         let r = buf[0];
