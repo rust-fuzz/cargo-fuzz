@@ -73,7 +73,6 @@ impl ProjectBuilder {
                     [package]
                     name = "{name}-fuzz"
                     version = "0.0.0"
-                    authors = ["Automatically generated"]
                     publish = false
                     edition = "2018"
 
