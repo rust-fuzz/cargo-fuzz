@@ -4,7 +4,6 @@ macro_rules! toml_template {
             r##"[package]
 name = "{0}-fuzz"
 version = "0.0.0"
-authors = ["Automatically generated"]
 publish = false
 edition = "2018"
 
