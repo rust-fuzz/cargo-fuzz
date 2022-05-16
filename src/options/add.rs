@@ -1,4 +1,5 @@
-use crate::{options::FuzzDirWrapper, project::FuzzProject, RunCommand};
+use crate::project::{FuzzProject, Manifest};
+use crate::{options::FuzzDirWrapper, RunCommand};
 use anyhow::Result;
 use structopt::StructOpt;
 
@@ -14,6 +15,8 @@ pub struct Add {
 impl RunCommand for Add {
     fn run_command(&mut self) -> Result<()> {
         let project = FuzzProject::new(self.fuzz_dir_wrapper.fuzz_dir.to_owned())?;
-        project.add_target(self)
+        let fuzz_manifest_path = project.fuzz_dir().join("Cargo.toml");
+        let manifest = Manifest::parse(&fuzz_manifest_path)?;
+        project.add_target(self, &manifest)
     }
 }

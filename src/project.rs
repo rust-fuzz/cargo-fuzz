@@ -52,7 +52,8 @@ impl FuzzProject {
     pub fn init(init: &options::Init, fuzz_dir_opt: Option<PathBuf>) -> Result<Self> {
         let project = Self::manage_initial_instance(fuzz_dir_opt)?;
         let fuzz_project = project.fuzz_dir();
-        let root_project_name = project.root_project_name()?;
+        let root_project_manifest_path = project.project_dir.join("Cargo.toml");
+        let manifest = Manifest::parse(&root_project_manifest_path)?;
 
         // TODO: check if the project is already initialized
         fs::create_dir(&fuzz_project)
@@ -67,7 +68,7 @@ impl FuzzProject {
         let mut cargo = fs::File::create(&cargo_toml)
             .with_context(|| format!("failed to create {}", cargo_toml.display()))?;
         cargo
-            .write_fmt(toml_template!(root_project_name))
+            .write_fmt(toml_template!(manifest.crate_name, manifest.edition))
             .with_context(|| format!("failed to write to {}", cargo_toml.display()))?;
 
         let gitignore = fuzz_project.join(".gitignore");
@@ -78,7 +79,7 @@ impl FuzzProject {
             .with_context(|| format!("failed to write to {}", gitignore.display()))?;
 
         project
-            .create_target_template(&init.target)
+            .create_target_template(&init.target, &manifest)
             .with_context(|| {
                 format!(
                     "could not create template file for target {:?}",
@@ -96,16 +97,16 @@ impl FuzzProject {
     }
 
     /// Create a new fuzz target.
-    pub fn add_target(&self, add: &options::Add) -> Result<()> {
+    pub fn add_target(&self, add: &options::Add, manifest: &Manifest) -> Result<()> {
         // Create corpus and artifact directories for the newly added target
         self.corpus_for(&add.target)?;
         self.artifacts_for(&add.target)?;
-        self.create_target_template(&add.target)
+        self.create_target_template(&add.target, manifest)
             .with_context(|| format!("could not add target {:?}", add.target))
     }
 
     /// Add a new fuzz target script with a given name
-    fn create_target_template(&self, target: &str) -> Result<()> {
+    fn create_target_template(&self, target: &str, manifest: &Manifest) -> Result<()> {
         let target_path = self.target_path(target);
 
         // If the user manually created a fuzz project, but hasn't created any
@@ -120,7 +121,7 @@ impl FuzzProject {
             .create_new(true)
             .open(&target_path)
             .with_context(|| format!("could not create target script file at {:?}", target_path))?;
-        script.write_fmt(target_template!())?;
+        script.write_fmt(target_template!(manifest.edition))?;
 
         let mut cargo = fs::OpenOptions::new()
             .append(true)
@@ -724,7 +725,7 @@ impl FuzzProject {
         }
     }
 
-    fn fuzz_dir(&self) -> &Path {
+    pub(crate) fn fuzz_dir(&self) -> &Path {
         &self.fuzz_dir
     }
 
@@ -806,25 +807,6 @@ impl FuzzProject {
         })
     }
 
-    fn root_project_name(&self) -> Result<String> {
-        let filename = self.project_dir.join("Cargo.toml");
-        let mut file = fs::File::open(&filename)?;
-        let mut data = Vec::new();
-        file.read_to_end(&mut data)?;
-        let value: toml::Value = toml::from_slice(&data)?;
-        let name = value
-            .as_table()
-            .and_then(|v| v.get("package"))
-            .and_then(toml::Value::as_table)
-            .and_then(|v| v.get("name"))
-            .and_then(toml::Value::as_str);
-        if let Some(name) = name {
-            Ok(String::from(name))
-        } else {
-            bail!("{} (package.name) is malformed", filename.display());
-        }
-    }
-
     // If `fuzz_dir_opt` is `None`, returns a new instance with the default fuzz project
     // path. Otherwise, returns a new instance with the inner content of `fuzz_dir_opt`.
     fn manage_initial_instance(fuzz_dir_opt: Option<PathBuf>) -> Result<Self> {
@@ -866,6 +848,39 @@ fn collect_targets(value: &toml::Value) -> Vec<String> {
     // Always sort them, so that we have deterministic output.
     bins.sort();
     bins
+}
+
+pub struct Manifest {
+    crate_name: String,
+    edition: Option<String>,
+}
+
+impl Manifest {
+    pub fn parse(path: &Path) -> Result<Self> {
+        let contents = fs::read(path)?;
+        let value: toml::Value = toml::from_slice(&contents)?;
+        let package = value
+            .as_table()
+            .and_then(|v| v.get("package"))
+            .and_then(toml::Value::as_table);
+        let crate_name = package
+            .and_then(|v| v.get("name"))
+            .and_then(toml::Value::as_str)
+            .with_context(|| anyhow!("{} (package.name) is malformed", path.display()))?
+            .to_owned();
+        let edition = package
+            .expect("can't be None at this point")
+            .get("edition")
+            .map(|v| match v.as_str() {
+                Some(s) => Ok(s.to_owned()),
+                None => bail!("{} (package.edition) is malformed", path.display()),
+            })
+            .transpose()?;
+        Ok(Manifest {
+            crate_name,
+            edition,
+        })
+    }
 }
 
 fn is_fuzz_manifest(value: &toml::Value) -> bool {

@@ -74,7 +74,7 @@ impl ProjectBuilder {
                     name = "{name}-fuzz"
                     version = "0.0.0"
                     publish = false
-                    edition = "2018"
+                    edition = "2021"
 
                     [package.metadata]
                     cargo-fuzz = true
