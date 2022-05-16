@@ -82,11 +82,11 @@ impl ProjectBuilder {
                     [workspace]
                     members = ["."]
 
+                    [dependencies]
+                    libfuzzer-sys = "0.4"
+
                     [dependencies.{name}]
                     path = ".."
-
-                    [dependencies.libfuzzer-sys]
-                    version = "0.3.0"
                 "#,
                 name = self.project.name,
             ),
