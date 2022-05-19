@@ -1,0 +1,142 @@
+name: deploy
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+
+  create-windows-binaries:
+
+    runs-on: windows-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install Rust stable
+      run: |
+        rustup toolchain install stable --profile minimal --no-self-update
+
+    - name: Build cargo-fuzz
+      run: |
+        cargo build --release
+
+    - name: Get the version
+      shell: bash
+      id: tagName
+      run: |
+        VERSION=$(cargo pkgid | cut -d# -f2 | cut -d: -f2)
+        echo "::set-output name=tag::$VERSION"
+
+    - name: Build package
+      id: package
+      shell: bash
+      run: |
+        ARCHIVE_TARGET="x86_64-pc-windows-msvc"
+        ARCHIVE_NAME="cargo-fuzz-${{ steps.tagName.outputs.tag }}-$ARCHIVE_TARGET"
+        ARCHIVE_FILE="${ARCHIVE_NAME}.zip"
+        7z a ${ARCHIVE_FILE} ./target/release/cargo-fuzz.exe
+        echo "::set-output name=file::${ARCHIVE_FILE}"
+        echo "::set-output name=name::${ARCHIVE_NAME}.zip"
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: ${{ steps.package.outputs.name }}
+        path: ${{ steps.package.outputs.file }}
+
+  create-unix-binaries:
+
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+          - os: macos-latest
+            target: x86_64-apple-darwin
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Install Rust stable
+      run: |
+        rustup toolchain install stable --profile minimal --no-self-update --target ${{ matrix.target }}
+
+    - name: Install musl
+      if: contains(matrix.target, 'linux-musl')
+      run: |
+        sudo apt-get install musl-tools
+
+    - name: Build cargo-fuzz
+      run: |
+        # TODO: Remember to add RUSTFLAGS=+crt-static for musl target when
+        # static linkage will not be the default behaviour
+        cargo build --release --target ${{ matrix.target }}
+
+    - name: Strip binary
+      run: |
+        strip target/${{ matrix.target }}/release/cargo-fuzz
+
+    - name: Get the version
+      id: tagName
+      run: |
+        VERSION=$(cargo pkgid | cut -d# -f2 | cut -d: -f2)
+        echo "::set-output name=tag::$VERSION"
+
+    - name: Build package
+      id: package
+      run: |
+        TAR_FILE=cargo-fuzz-${{ steps.tagName.outputs.tag }}-${{ matrix.target }}
+        cd target/${{ matrix.target }}/release
+        tar -czvf $GITHUB_WORKSPACE/$TAR_FILE.tar.gz cargo-fuzz
+        echo ::set-output "name=name::${TAR_FILE}"
+        echo ::set-output "name=file::${TAR_FILE}.tar.gz "
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v2
+      with:
+        name: ${{ steps.package.outputs.name }}
+        path: ${{ steps.package.outputs.file }}
+
+
+  deploy:
+
+    needs: [create-windows-binaries, create-unix-binaries]
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Install Rust stable
+        run: |
+          rustup toolchain install stable --profile minimal --no-self-update
+
+      - name: Create Cargo.lock
+        run: |
+          cargo update
+
+      - name: Get version
+        id: tagName
+        run: |
+          VERSION=$(cargo pkgid | cut -d# -f2 | cut -d: -f2)
+          echo "::set-output name=tag::$VERSION"
+
+      - name: Download artifacts
+        uses: actions/download-artifact@v2
+        with:
+          path: ./binaries
+
+      - name: Create a release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: v${{ steps.tagName.outputs.tag }}
+          files: |
+            ./binaries/**/*.zip
+            ./binaries/**/*.tar.gz
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
