@@ -100,6 +100,10 @@ pub struct BuildOptions {
     /// Use a specific sanitizer
     pub sanitizer: Sanitizer,
 
+    #[structopt(long = "disable-instrumentation")]
+    /// Disable all sanitizers and coverage instrumentation
+    pub disable_instrumentation: bool,
+
     #[structopt(
         name = "triple",
         long = "target",
@@ -239,6 +243,7 @@ mod test {
             strip_dead_code: false,
             no_cfg_fuzzing: false,
             no_trace_compares: false,
+            disable_instrumentation: false,
         };
 
         let opts = vec![

@@ -160,14 +160,26 @@ impl FuzzProject {
             cmd.arg("-Z").arg("build-std");
         }
 
-        let mut rustflags: String = "-Cpasses=sancov-module \
-                                     -Cllvm-args=-sanitizer-coverage-level=4 \
-                                     -Cllvm-args=-sanitizer-coverage-inline-8bit-counters \
-                                     -Cllvm-args=-sanitizer-coverage-pc-table"
-            .to_owned();
+        let inst_flag = |flags: &mut String, flag: &str| {
+            if !build.disable_instrumentation {
+                flags.push_str(flag)
+            }
+        };
+
+        let mut rustflags = String::new();
+        inst_flag(
+            &mut rustflags,
+            "-Cpasses=sancov-module \
+             -Cllvm-args=-sanitizer-coverage-level=4 \
+             -Cllvm-args=-sanitizer-coverage-inline-8bit-counters \
+             -Cllvm-args=-sanitizer-coverage-pc-table",
+        );
 
         if !build.no_trace_compares {
-            rustflags.push_str(" -Cllvm-args=-sanitizer-coverage-trace-compares");
+            inst_flag(
+                &mut rustflags,
+                " -Cllvm-args=-sanitizer-coverage-trace-compares",
+            );
         }
 
         if !build.no_cfg_fuzzing {
@@ -179,7 +191,7 @@ impl FuzzProject {
         }
 
         if build.coverage {
-            rustflags.push_str(" -Cinstrument-coverage");
+            inst_flag(&mut rustflags, " -Cinstrument-coverage");
         }
 
         match build.sanitizer {
@@ -187,15 +199,22 @@ impl FuzzProject {
             Sanitizer::Memory => {
                 // Memory sanitizer requires more flags to function than others:
                 // https://doc.rust-lang.org/unstable-book/compiler-flags/sanitizer.html#memorysanitizer
-                rustflags.push_str(" -Zsanitizer=memory -Zsanitizer-memory-track-origins")
+                inst_flag(
+                    &mut rustflags,
+                    " -Zsanitizer=memory -Zsanitizer-memory-track-origins",
+                )
             }
-            _ => rustflags.push_str(&format!(
-                " -Zsanitizer={sanitizer}",
-                sanitizer = build.sanitizer
-            )),
+            _ => inst_flag(
+                &mut rustflags,
+                &format!(" -Zsanitizer={sanitizer}", sanitizer = build.sanitizer),
+            ),
         }
+
         if build.triple.contains("-linux-") {
-            rustflags.push_str(" -Cllvm-args=-sanitizer-coverage-stack-depth");
+            inst_flag(
+                &mut rustflags,
+                " -Cllvm-args=-sanitizer-coverage-stack-depth",
+            );
         }
         if !build.release || build.debug_assertions {
             rustflags.push_str(" -Cdebug-assertions");
