@@ -358,7 +358,7 @@ impl FuzzProject {
 
         if !output.status.success() {
             bail!(
-                "Fuzz target '{target}' exited with failure when attemping to \
+                "Fuzz target '{target}' exited with failure when attempting to \
                  debug formatting an interesting input that we discovered!\n\n\
                  Artifact: {artifact}\n\n\
                  Command: {cmd:?}\n\n\

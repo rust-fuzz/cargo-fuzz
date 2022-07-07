@@ -57,7 +57,7 @@ Released 2020-04-19.
   By default, dead code is linked because LLVM's code coverage instrumentation
   assumes it is present in the coverage maps for some targets. Some code bases,
   however, require stripping dead code to avoid "undefined symbol" linker
-  errors. This flag allows controlling whether dead code is stipped or not in
+  errors. This flag allows controlling whether dead code is stripped or not in
   your build. [#260](https://github.com/rust-fuzz/cargo-fuzz/pull/260)
 
 ### Fixed
