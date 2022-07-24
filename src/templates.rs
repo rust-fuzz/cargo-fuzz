@@ -18,6 +18,9 @@ path = ".."
 # Prevent this from interfering with workspaces
 [workspace]
 members = ["."]
+
+[profile.release]
+debug = 1
 "##,
             name = $name,
             edition = if let Some(edition) = &$edition {
