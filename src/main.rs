@@ -116,6 +116,10 @@ enum Command {
     /// Build fuzz targets
     Build(options::Build),
 
+    #[structopt(template(LONG_ABOUT_TEMPLATE))]
+    /// Type-check the fuzz targets
+    Check(options::Check),
+
     /// Print the `std::fmt::Debug` output for an input
     Fmt(options::Fmt),
 
@@ -146,6 +150,7 @@ impl RunCommand for Command {
             Command::Init(x) => x.run_command(),
             Command::Add(x) => x.run_command(),
             Command::Build(x) => x.run_command(),
+            Command::Check(x) => x.run_command(),
             Command::List(x) => x.run_command(),
             Command::Fmt(x) => x.run_command(),
             Command::Run(x) => x.run_command(),

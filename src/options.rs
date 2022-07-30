@@ -1,5 +1,6 @@
 mod add;
 mod build;
+mod check;
 mod cmin;
 mod coverage;
 mod fmt;
@@ -9,8 +10,8 @@ mod run;
 mod tmin;
 
 pub use self::{
-    add::Add, build::Build, cmin::Cmin, coverage::Coverage, fmt::Fmt, init::Init, list::List,
-    run::Run, tmin::Tmin,
+    add::Add, build::Build, check::Check, cmin::Cmin, coverage::Coverage, fmt::Fmt, init::Init,
+    list::List, run::Run, tmin::Tmin,
 };
 
 use std::str::FromStr;
@@ -55,6 +56,12 @@ impl FromStr for Sanitizer {
             _ => Err(format!("unknown sanitizer: {}", s)),
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum BuildMode {
+    Build,
+    Check,
 }
 
 #[derive(Clone, Debug, StructOpt, PartialEq)]

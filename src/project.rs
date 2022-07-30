@@ -1,4 +1,4 @@
-use crate::options::{self, BuildOptions, Sanitizer};
+use crate::options::{self, BuildMode, BuildOptions, Sanitizer};
 use crate::utils::default_target;
 use anyhow::{anyhow, bail, Context, Result};
 use std::collections::HashSet;
@@ -268,10 +268,15 @@ impl FuzzProject {
 
     pub fn exec_build(
         &self,
+        mode: options::BuildMode,
         build: &options::BuildOptions,
         fuzz_target: Option<&str>,
     ) -> Result<()> {
-        let mut cmd = self.cargo("build", build)?;
+        let cargo_subcommand = match mode {
+            options::BuildMode::Build => "build",
+            options::BuildMode::Check => "check",
+        };
+        let mut cmd = self.cargo(cargo_subcommand, build)?;
 
         if let Some(fuzz_target) = fuzz_target {
             cmd.arg("--bin").arg(fuzz_target);
@@ -408,7 +413,7 @@ impl FuzzProject {
 
     /// Fuzz a given fuzz target
     pub fn exec_fuzz(&self, run: &options::Run) -> Result<()> {
-        self.exec_build(&run.build, Some(&run.target))?;
+        self.exec_build(BuildMode::Build, &run.build, Some(&run.target))?;
         let mut cmd = self.cargo_run(&run.build, &run.target)?;
 
         for arg in &run.args {
@@ -497,7 +502,7 @@ impl FuzzProject {
     }
 
     pub fn exec_tmin(&self, tmin: &options::Tmin) -> Result<()> {
-        self.exec_build(&tmin.build, Some(&tmin.target))?;
+        self.exec_build(BuildMode::Build, &tmin.build, Some(&tmin.target))?;
         let mut cmd = self.cargo_run(&tmin.build, &tmin.target)?;
         cmd.arg("-minimize_crash=1")
             .arg(format!("-runs={}", tmin.runs))
@@ -572,7 +577,7 @@ impl FuzzProject {
     }
 
     pub fn exec_cmin(&self, cmin: &options::Cmin) -> Result<()> {
-        self.exec_build(&cmin.build, Some(&cmin.target))?;
+        self.exec_build(BuildMode::Build, &cmin.build, Some(&cmin.target))?;
         let mut cmd = self.cargo_run(&cmin.build, &cmin.target)?;
 
         for arg in &cmin.args {
@@ -613,7 +618,7 @@ impl FuzzProject {
     /// Produce coverage information for a given corpus
     pub fn exec_coverage(self, coverage: &options::Coverage) -> Result<()> {
         // Build project with source-based coverage generation enabled.
-        self.exec_build(&coverage.build, Some(&coverage.target))?;
+        self.exec_build(BuildMode::Build, &coverage.build, Some(&coverage.target))?;
 
         // Retrieve corpus directories.
         let corpora = if coverage.corpus.is_empty() {
