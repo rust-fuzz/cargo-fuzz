@@ -200,7 +200,6 @@ impl Project {
             .map(|e| {
                 e.expect("should read an entry from the tests' target directory OK")
                     .path()
-                    
             }).find(|d| d.is_dir() && !d.ends_with("debug") && !d.ends_with("release"))
             .unwrap()
     }
