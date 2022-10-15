@@ -24,7 +24,7 @@ impl RunCommand for Build {
         project.exec_build(
             BuildMode::Build,
             &self.build,
-            self.target.as_deref().map(|s| s),
+            self.target.as_deref(),
         )
     }
 }

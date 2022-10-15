@@ -56,7 +56,7 @@ impl FuzzProject {
         let manifest = Manifest::parse(&root_project_manifest_path)?;
 
         // TODO: check if the project is already initialized
-        fs::create_dir(&fuzz_project)
+        fs::create_dir(fuzz_project)
             .with_context(|| format!("failed to create directory {}", fuzz_project.display()))?;
 
         let fuzz_targets_dir = fuzz_project.join(crate::FUZZ_TARGETS_DIR);
@@ -218,7 +218,7 @@ impl FuzzProject {
         }
 
         if let Ok(other_flags) = env::var("RUSTFLAGS") {
-            rustflags.push_str(" ");
+            rustflags.push(' ');
             rustflags.push_str(&other_flags);
         }
         cmd.env("RUSTFLAGS", rustflags);
@@ -260,7 +260,7 @@ impl FuzzProject {
         }
 
         let mut artifact_arg = ffi::OsString::from("-artifact_prefix=");
-        artifact_arg.push(self.artifacts_for(&fuzz_target)?);
+        artifact_arg.push(self.artifacts_for(fuzz_target)?);
         cmd.arg("--").arg(artifact_arg);
 
         Ok(cmd)
@@ -352,10 +352,10 @@ impl FuzzProject {
     ) -> Result<String> {
         let debug_output = tempfile::NamedTempFile::new().context("failed to create temp file")?;
 
-        let mut cmd = self.cargo_run(&build, &target)?;
+        let mut cmd = self.cargo_run(build, target)?;
         cmd.stdin(Stdio::null());
-        cmd.env("RUST_LIBFUZZER_DEBUG_PATH", &debug_output.path());
-        cmd.arg(&artifact);
+        cmd.env("RUST_LIBFUZZER_DEBUG_PATH", debug_output.path());
+        cmd.arg(artifact);
 
         let output = cmd
             .output()
@@ -935,5 +935,5 @@ fn strip_current_dir_prefix(path: &Path) -> &Path {
     env::current_dir()
         .ok()
         .and_then(|curdir| path.strip_prefix(curdir).ok())
-        .unwrap_or(&path)
+        .unwrap_or(path)
 }

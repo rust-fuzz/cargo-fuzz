@@ -24,7 +24,7 @@ impl RunCommand for Check {
         project.exec_build(
             BuildMode::Check,
             &self.build,
-            self.target.as_deref().map(|s| s),
+            self.target.as_deref(),
         )
     }
 }
