@@ -21,10 +21,6 @@ pub struct Check {
 impl RunCommand for Check {
     fn run_command(&mut self) -> Result<()> {
         let project = FuzzProject::new(self.fuzz_dir_wrapper.fuzz_dir.to_owned())?;
-        project.exec_build(
-            BuildMode::Check,
-            &self.build,
-            self.target.as_deref().map(|s| s),
-        )
+        project.exec_build(BuildMode::Check, &self.build, self.target.as_deref())
     }
 }
