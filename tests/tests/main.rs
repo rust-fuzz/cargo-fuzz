@@ -654,6 +654,7 @@ fn tmin() {
         .cargo_fuzz()
         .arg("tmin")
         .arg("i_hate_zed")
+        .arg("--sanitizer=none")
         .arg(&test_case)
         .assert()
         .stderr(
@@ -668,7 +669,7 @@ fn tmin() {
                 .and(predicate::str::contains(
                     "Reproduce with:\n\
                      \n\
-                     \tcargo fuzz run i_hate_zed fuzz/artifacts/i_hate_zed/minimized-from-"
+                     \tcargo fuzz run --sanitizer=none i_hate_zed fuzz/artifacts/i_hate_zed/minimized-from-"
                 )),
         )
         .success();
