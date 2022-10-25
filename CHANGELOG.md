@@ -4,13 +4,7 @@ Released YYYY-MM-DD.
 
 ### Added
 
-* Added the `--no-trace-compares` flag which opts out of the
-  `-sanitizer-coverage-trace-compares` LLVM argument.
-
-  Using this may improve fuzzer throughput at the cost of worse coverage accuracy.
-  It also allows older CPUs lacking the `popcnt` instruction to use `cargo-fuzz`;
-  the `*-trace-compares` instrumentation assumes that the instruction is
-  available.
+* TODO (or remove section if none)
 
 ### Changed
 
@@ -31,6 +25,34 @@ Released YYYY-MM-DD.
 ### Security
 
 * TODO (or remove section if none)
+
+--------------------------------------------------------------------------------
+
+## 0.11.1
+
+Released 2022-10-25.
+
+### Fixed
+
+* Fixed the suggested reproducer command outputted by `cargo fuzz tmin` to
+  preserve any build flags (such as sanitizers) the same way that `cargo fuzz
+  fun`'s suggested reproducer command will.
+
+--------------------------------------------------------------------------------
+
+## 0.11.0
+
+Released YYYY-MM-DD.
+
+### Added
+
+* Added the `--no-trace-compares` flag which opts out of the
+  `-sanitizer-coverage-trace-compares` LLVM argument.
+
+  Using this may improve fuzzer throughput at the cost of worse coverage accuracy.
+  It also allows older CPUs lacking the `popcnt` instruction to use `cargo-fuzz`;
+  the `*-trace-compares` instrumentation assumes that the instruction is
+  available.
 
 --------------------------------------------------------------------------------
 
