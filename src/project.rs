@@ -566,8 +566,16 @@ impl FuzzProject {
                 eprintln!();
             }
 
+            let fuzz_dir = if self.fuzz_dir_is_default_path() {
+                String::new()
+            } else {
+                format!(" --fuzz-dir {}", self.fuzz_dir().display())
+            };
+
             eprintln!(
-                "Reproduce with:\n\n\tcargo fuzz run {target} {artifact}\n",
+                "Reproduce with:\n\n\tcargo fuzz run{fuzz_dir}{options} {target} {artifact}\n",
+                fuzz_dir = &fuzz_dir,
+                options = &tmin.build,
                 target = &tmin.target,
                 artifact = artifact.display()
             );
