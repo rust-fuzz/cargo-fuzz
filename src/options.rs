@@ -79,8 +79,8 @@ pub struct BuildOptions {
     pub debug_assertions: bool,
 
     /// Build target with verbose output from `cargo build`
-    #[structopt(short = "v", long = "verbose")]
-    pub verbose: bool,
+    #[structopt(short = "v", long = "verbose", parse(from_occurrences))]
+    pub verbose: i32,
 
     #[structopt(long = "no-default-features")]
     /// Build artifacts with default Cargo features disabled
@@ -165,7 +165,7 @@ impl stdfmt::Display for BuildOptions {
             write!(f, " -a")?;
         }
 
-        if self.verbose {
+        for _ in 0..self.verbose {
             write!(f, " -v")?;
         }
 
@@ -234,7 +234,7 @@ mod test {
             dev: false,
             release: false,
             debug_assertions: false,
-            verbose: false,
+            verbose: 0,
             no_default_features: false,
             all_features: false,
             features: None,
@@ -263,7 +263,7 @@ mod test {
                 ..default_opts.clone()
             },
             BuildOptions {
-                verbose: true,
+                verbose: 1,
                 ..default_opts.clone()
             },
             BuildOptions {
