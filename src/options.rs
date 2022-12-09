@@ -14,11 +14,10 @@ pub use self::{
     list::List, run::Run, tmin::Tmin,
 };
 
-use std::str::FromStr;
+use clap::{Parser, ValueEnum};
 use std::{fmt as stdfmt, path::PathBuf};
-use structopt::StructOpt;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq, ValueEnum)]
 pub enum Sanitizer {
     Address,
     Leak,
@@ -43,87 +42,63 @@ impl stdfmt::Display for Sanitizer {
     }
 }
 
-impl FromStr for Sanitizer {
-    type Err = String;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "address" => Ok(Sanitizer::Address),
-            "leak" => Ok(Sanitizer::Leak),
-            "memory" => Ok(Sanitizer::Memory),
-            "thread" => Ok(Sanitizer::Thread),
-            "none" => Ok(Sanitizer::None),
-            _ => Err(format!("unknown sanitizer: {}", s)),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Copy, Clone, Debug, Eq, PartialEq)]
 pub enum BuildMode {
     Build,
     Check,
 }
 
-#[derive(Clone, Debug, StructOpt, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Parser)]
 pub struct BuildOptions {
-    #[structopt(short = "D", long = "dev", conflicts_with = "release")]
+    #[arg(short = 'D', long, conflicts_with = "release")]
     /// Build artifacts in development mode, without optimizations
     pub dev: bool,
 
-    #[structopt(short = "O", long = "release", conflicts_with = "dev")]
+    #[arg(short = 'O', long, conflicts_with = "dev")]
     /// Build artifacts in release mode, with optimizations
     pub release: bool,
 
-    #[structopt(short = "a", long = "debug-assertions")]
+    #[arg(short = 'a', long)]
     /// Build artifacts with debug assertions and overflow checks enabled (default if not -O)
     pub debug_assertions: bool,
 
     /// Build target with verbose output from `cargo build`
-    #[structopt(short = "v", long = "verbose")]
+    #[arg(short = 'v', long)]
     pub verbose: bool,
 
-    #[structopt(long = "no-default-features")]
+    #[arg(long)]
     /// Build artifacts with default Cargo features disabled
     pub no_default_features: bool,
 
-    #[structopt(
-        long = "all-features",
+    #[arg(
+        long,
         conflicts_with = "no-default-features",
         conflicts_with = "features"
     )]
     /// Build artifacts with all Cargo features enabled
     pub all_features: bool,
 
-    #[structopt(long = "features")]
+    #[arg(long)]
     /// Build artifacts with given Cargo feature enabled
     pub features: Option<String>,
 
-    #[structopt(
-        short = "s",
-        long = "sanitizer",
-        possible_values(&["address", "leak", "memory", "thread", "none"]),
-        default_value = "address",
-    )]
+    #[arg(short, long, value_enum, default_value = "address")]
     /// Use a specific sanitizer
     pub sanitizer: Sanitizer,
 
-    #[structopt(
-        name = "triple",
-        long = "target",
-        default_value(crate::utils::default_target())
-    )]
+    #[arg(long = "target", default_value(crate::utils::default_target()))]
     /// Target triple of the fuzz target
     pub triple: String,
 
-    #[structopt(short = "Z", value_name = "FLAG")]
+    #[arg(short = 'Z', value_name = "FLAG")]
     /// Unstable (nightly-only) flags to Cargo
     pub unstable_flags: Vec<String>,
 
-    #[structopt(long = "target-dir")]
+    #[arg(long)]
     /// Target dir option to pass to cargo build.
     pub target_dir: Option<String>,
 
-    #[structopt(skip = false)]
+    #[arg(skip = false)]
     /// Instrument program code with source-based code coverage information.
     /// This build option will be automatically used when running `cargo fuzz coverage`.
     /// The option will not be shown to the user, which is ensured by the `skip` attribute.
@@ -133,15 +108,15 @@ pub struct BuildOptions {
 
     /// Dead code is linked by default to prevent a potential error with some
     /// optimized targets. This flag allows you to opt out of it.
-    #[structopt(long)]
+    #[arg(long)]
     pub strip_dead_code: bool,
 
     /// By default the 'cfg(fuzzing)' compilation configuration is set. This flag
     /// allows you to opt out of it.
-    #[structopt(long)]
+    #[arg(long)]
     pub no_cfg_fuzzing: bool,
 
-    #[structopt(long)]
+    #[arg(long)]
     /// Don't build with the `sanitizer-coverage-trace-compares` LLVM argument
     ///
     ///  Using this may improve fuzzer throughput at the cost of worse coverage accuracy.
@@ -207,10 +182,10 @@ impl stdfmt::Display for BuildOptions {
     }
 }
 
-#[derive(Clone, Debug, StructOpt, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq, Parser)]
 pub struct FuzzDirWrapper {
     /// The path to the fuzz project directory.
-    #[structopt(long = "fuzz-dir")]
+    #[arg(long)]
     pub fuzz_dir: Option<PathBuf>,
 }
 
@@ -301,12 +276,7 @@ mod test {
         ];
 
         for case in opts {
-            assert_eq!(
-                case,
-                BuildOptions::from_clap(
-                    &BuildOptions::clap().get_matches_from(case.to_string().split(' '))
-                )
-            );
+            assert_eq!(case, BuildOptions::parse_from(case.to_string().split(' ')));
         }
     }
 }

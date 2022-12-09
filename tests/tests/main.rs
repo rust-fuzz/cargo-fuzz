@@ -616,7 +616,6 @@ fn cmin() {
     let corpus_count = || {
         fs::read_dir(project.root().join("fuzz").join("corpus").join("foo"))
             .unwrap()
-            .map(|e| e.unwrap())
             .count()
     };
     assert_eq!(corpus_count(), 5);

@@ -4,25 +4,25 @@ use crate::{
     RunCommand,
 };
 use anyhow::Result;
+use clap::Parser;
 use std::path::PathBuf;
-use structopt::StructOpt;
 
-#[derive(Clone, Debug, StructOpt)]
+#[derive(Clone, Debug, Parser)]
 pub struct Cmin {
-    #[structopt(flatten)]
+    #[command(flatten)]
     pub build: BuildOptions,
 
-    #[structopt(flatten)]
+    #[command(flatten)]
     pub fuzz_dir_wrapper: FuzzDirWrapper,
 
     /// Name of the fuzz target
     pub target: String,
 
-    #[structopt(parse(from_os_str))]
+    #[arg()]
     /// The corpus directory to minify into
     pub corpus: Option<PathBuf>,
 
-    #[structopt(last(true))]
+    #[arg(last(true))]
     /// Additional libFuzzer arguments passed through to the binary
     pub args: Vec<String>,
 }
