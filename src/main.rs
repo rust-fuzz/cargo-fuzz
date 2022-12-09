@@ -6,7 +6,7 @@
 // copied, modified, or distributed except according to those terms.
 
 use anyhow::Result;
-use structopt::StructOpt;
+use clap::Parser;
 
 #[macro_use]
 mod templates;
@@ -88,18 +88,18 @@ trait RunCommand {
     fn run_command(&mut self) -> Result<()>;
 }
 
-#[derive(Clone, Debug, StructOpt)]
-#[structopt(
-    setting(structopt::clap::AppSettings::SubcommandRequiredElseHelp),
-    setting(structopt::clap::AppSettings::GlobalVersion),
-    version(option_env!("CARGO_PKG_VERSION").unwrap_or("0.0.0")),
-    about(option_env!("CARGO_PKG_DESCRIPTION").unwrap_or("")),
-    // Cargo passes in the subcommand name to the invoked executable. Use a
-    // hidden, optional positional argument to deal with it.
-    arg(structopt::clap::Arg::with_name("dummy")
-        .possible_value("fuzz")
+#[derive(Clone, Debug, Parser)]
+#[command(version, about)]
+#[command(subcommand_required = true)]
+#[command(arg_required_else_help = true)]
+#[command(propagate_version = true)]
+// Cargo passes in the subcommand name to the invoked executable.
+// Use a hidden, optional positional argument to deal with it.
+#[command(
+    arg(clap::Arg::new("dummy")
+        .value_parser(["fuzz"])
         .required(false)
-        .hidden(true)),
+        .hide(true))
 )]
 enum Command {
     /// Initialize the fuzz directory
@@ -108,15 +108,15 @@ enum Command {
     /// Add a new fuzz target
     Add(options::Add),
 
-    #[structopt(
-        template(LONG_ABOUT_TEMPLATE),
+    #[command(
+        help_template(LONG_ABOUT_TEMPLATE),
         before_help(BUILD_BEFORE_HELP),
         after_help(BUILD_AFTER_HELP)
     )]
     /// Build fuzz targets
     Build(options::Build),
 
-    #[structopt(template(LONG_ABOUT_TEMPLATE))]
+    #[command(help_template(LONG_ABOUT_TEMPLATE))]
     /// Type-check the fuzz targets
     Check(options::Check),
 
@@ -126,8 +126,8 @@ enum Command {
     /// List all the existing fuzz targets
     List(options::List),
 
-    #[structopt(
-        template(LONG_ABOUT_TEMPLATE),
+    #[command(
+        help_template(LONG_ABOUT_TEMPLATE),
         before_help(RUN_BEFORE_HELP),
         after_help(RUN_AFTER_HELP)
     )]
@@ -162,5 +162,5 @@ impl RunCommand for Command {
 }
 
 fn main() -> Result<()> {
-    Command::from_args().run_command()
+    Command::parse().run_command()
 }

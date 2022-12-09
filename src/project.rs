@@ -708,7 +708,9 @@ impl FuzzProject {
     }
 
     fn merge_coverage(&self, profdata_raw_path: &Path, profdata_out_path: &Path) -> Result<()> {
-        let mut merge_cmd = Command::new(cargo_binutils::Tool::Profdata.path()?);
+        let mut profdata_path = rustlib()?;
+        profdata_path.push(format!("llvm-profdata{}", env::consts::EXE_SUFFIX));
+        let mut merge_cmd = Command::new(profdata_path);
         merge_cmd.arg("merge").arg("-sparse");
         merge_cmd.arg(profdata_raw_path);
         merge_cmd.arg("-o").arg(profdata_out_path);
@@ -839,6 +841,23 @@ impl FuzzProject {
     fn fuzz_dir_is_default_path(&self) -> bool {
         self.fuzz_dir.ends_with(DEFAULT_FUZZ_DIR)
     }
+}
+
+fn sysroot() -> Result<String> {
+    let rustc = env::var_os("RUSTC").unwrap_or_else(|| "rustc".into());
+    let output = Command::new(rustc).arg("--print").arg("sysroot").output()?;
+    // Note: We must trim() to remove the `\n` from the end of stdout
+    Ok(String::from_utf8(output.stdout)?.trim().to_owned())
+}
+
+fn rustlib() -> Result<PathBuf> {
+    let sysroot = sysroot()?;
+    let mut pathbuf = PathBuf::from(sysroot);
+    pathbuf.push("lib");
+    pathbuf.push("rustlib");
+    pathbuf.push(rustc_version::version_meta()?.host);
+    pathbuf.push("bin");
+    Ok(pathbuf)
 }
 
 fn collect_targets(value: &toml::Value) -> Vec<String> {

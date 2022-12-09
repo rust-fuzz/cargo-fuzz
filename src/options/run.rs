@@ -4,11 +4,11 @@ use crate::{
     RunCommand,
 };
 use anyhow::Result;
-use structopt::StructOpt;
+use clap::Parser;
 
-#[derive(Clone, Debug, StructOpt)]
+#[derive(Clone, Debug, Parser)]
 pub struct Run {
-    #[structopt(flatten)]
+    #[command(flatten)]
     pub build: BuildOptions,
 
     /// Name of the fuzz target
@@ -17,23 +17,19 @@ pub struct Run {
     /// Custom corpus directories or artifact files.
     pub corpus: Vec<String>,
 
-    #[structopt(flatten)]
+    #[command(flatten)]
     pub fuzz_dir_wrapper: FuzzDirWrapper,
 
-    #[structopt(
-        short = "j",
-        long = "jobs",
+    #[arg(
+        short,
+        long,
         default_value = "1",
-        validator(|v| Err(From::from(match v.parse::<u16>() {
-            Ok(0) => "0 jobs?",
-            Err(_) => "must be a valid integer representing a sane number of jobs",
-            _ => return Ok(()),
-        }))),
+        value_parser = clap::value_parser!(u16).range(1..)
     )]
     /// Number of concurrent jobs to run
-    pub jobs: u32,
+    pub jobs: u16,
 
-    #[structopt(last(true))]
+    #[arg(last(true))]
     /// Additional libFuzzer arguments passed through to the binary
     pub args: Vec<String>,
 }

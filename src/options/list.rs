@@ -1,10 +1,10 @@
 use crate::{options::FuzzDirWrapper, project::FuzzProject, RunCommand};
 use anyhow::Result;
-use structopt::StructOpt;
+use clap::Parser;
 
-#[derive(Clone, Debug, StructOpt)]
+#[derive(Clone, Debug, Parser)]
 pub struct List {
-    #[structopt(flatten)]
+    #[command(flatten)]
     pub fuzz_dir_wrapper: FuzzDirWrapper,
 }
 

@@ -1,3 +1,6 @@
+[workspace]
+members = ["."]
+
 [package]
 name = "cargo-fuzz"
 version = "0.11.1"
@@ -10,16 +13,13 @@ categories = ["development-tools::testing"]
 edition = "2021"
 
 [dependencies]
-anyhow = "1.0.25"
+anyhow = "1.0.66"
 current_platform = "0.2.0"
-structopt = "0.3.5"
-tempfile = "3.1.0"
-toml = "0.5.5"
-cargo-binutils = "0.3.3"
-
-[workspace]
-members = ["."]
+clap = { version = "4.0.29", features = ["derive", "deprecated"] }
+tempfile = "3.3.0"
+toml = "0.5.9"
+rustc_version = "0.4.0"
 
 [dev-dependencies]
-assert_cmd = "0.12.0"
-predicates = "1.0.2"
+assert_cmd = "2.0.7"
+predicates = "2.1.4"

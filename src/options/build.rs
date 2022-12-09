@@ -4,14 +4,14 @@ use crate::{
     RunCommand,
 };
 use anyhow::Result;
-use structopt::StructOpt;
+use clap::Parser;
 
-#[derive(Clone, Debug, StructOpt)]
+#[derive(Clone, Debug, Parser)]
 pub struct Build {
-    #[structopt(flatten)]
+    #[command(flatten)]
     pub build: BuildOptions,
 
-    #[structopt(flatten)]
+    #[command(flatten)]
     pub fuzz_dir_wrapper: FuzzDirWrapper,
 
     /// Name of the fuzz target to build, or build all targets if not supplied

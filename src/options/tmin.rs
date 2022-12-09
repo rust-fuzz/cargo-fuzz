@@ -4,38 +4,34 @@ use crate::{
     RunCommand,
 };
 use anyhow::Result;
+use clap::Parser;
 use std::path::PathBuf;
-use structopt::StructOpt;
 
-#[derive(Clone, Debug, StructOpt)]
+#[derive(Clone, Debug, Parser)]
 pub struct Tmin {
-    #[structopt(flatten)]
+    #[command(flatten)]
     pub build: BuildOptions,
 
-    #[structopt(flatten)]
+    #[command(flatten)]
     pub fuzz_dir_wrapper: FuzzDirWrapper,
 
     /// Name of the fuzz target
     pub target: String,
 
-    #[structopt(
-        short = "r",
-        long = "runs",
+    #[arg(
+        short = 'r',
+        long,
         default_value = "255",
-        validator(|v| Err(From::from(match v.parse::<u32>() {
-            Ok(0) => "0 jobs?",
-            Err(_) => "must be a valid integer representing a sane number of jobs",
-            _ => return Ok(()),
-        }))),
+        value_parser = clap::value_parser!(u32).range(1..),
     )]
     /// Number of minimization attempts to perform
     pub runs: u32,
 
-    #[structopt(parse(from_os_str))]
+    #[arg()]
     /// Path to the failing test case to be minimized
     pub test_case: PathBuf,
 
-    #[structopt(last(true))]
+    #[arg(last(true))]
     /// Additional libFuzzer arguments passed through to the binary
     pub args: Vec<String>,
 }

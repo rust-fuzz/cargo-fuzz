@@ -21,7 +21,7 @@ pub fn next_root() -> PathBuf {
         static TEST_ID: usize = NEXT_ID.fetch_add(1, SeqCst);
     }
     let id = TEST_ID.with(|n| *n);
-    target_tests().join(&format!("t{}", id))
+    target_tests().join(format!("t{}", id))
 }
 
 pub fn project(name: &str) -> ProjectBuilder {

@@ -1,19 +1,14 @@
 use crate::{options::FuzzDirWrapper, project::FuzzProject, RunCommand};
 use anyhow::Result;
-use structopt::StructOpt;
+use clap::Parser;
 
-#[derive(Clone, Debug, StructOpt)]
+#[derive(Clone, Debug, Parser)]
 pub struct Init {
-    #[structopt(
-        short = "t",
-        long = "target",
-        required = false,
-        default_value = "fuzz_target_1"
-    )]
+    #[arg(short, long, required = false, default_value = "fuzz_target_1")]
     /// Name of the first fuzz target to create
     pub target: String,
 
-    #[structopt(flatten)]
+    #[command(flatten)]
     pub fuzz_dir_wrapper: FuzzDirWrapper,
 }
 
