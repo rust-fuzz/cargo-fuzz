@@ -709,7 +709,7 @@ impl FuzzProject {
 
     fn merge_coverage(&self, profdata_raw_path: &Path, profdata_out_path: &Path) -> Result<()> {
         let mut profdata_path = rustlib()?;
-        profdata_path.push(format!("llvm-profdata-{}", env::consts::EXE_SUFFIX));
+        profdata_path.push(format!("llvm-profdata{}", env::consts::EXE_SUFFIX));
         let mut merge_cmd = Command::new(profdata_path);
         merge_cmd.arg("merge").arg("-sparse");
         merge_cmd.arg(profdata_raw_path);
