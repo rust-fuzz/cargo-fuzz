@@ -93,6 +93,8 @@ trait RunCommand {
 #[command(subcommand_required = true)]
 #[command(arg_required_else_help = true)]
 #[command(propagate_version = true)]
+// Cargo passes in the subcommand name to the invoked executable.
+// Use a hidden, optional positional argument to deal with it.
 #[command(
     arg(clap::Arg::new("dummy")
         .value_parser(["fuzz"])
