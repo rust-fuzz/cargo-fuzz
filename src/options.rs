@@ -70,11 +70,7 @@ pub struct BuildOptions {
     /// Build artifacts with default Cargo features disabled
     pub no_default_features: bool,
 
-    #[arg(
-        long,
-        conflicts_with = "no-default-features",
-        conflicts_with = "features"
-    )]
+    #[arg(long, conflicts_with_all = &["no_default_features", "features"])]
     /// Build artifacts with all Cargo features enabled
     pub all_features: bool,
 
