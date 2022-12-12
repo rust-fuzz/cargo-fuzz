@@ -266,6 +266,36 @@ impl FuzzProject {
         Ok(cmd)
     }
 
+    fn target_dir(&self, build: &options::BuildOptions) -> Result<PathBuf> {
+        if build.coverage {
+            Ok(env::current_dir()?
+                .join("target")
+                .join(default_target())
+                .join("coverage"))
+        } else {
+            Ok(build
+                .target_dir
+                .as_ref()
+                .map(PathBuf::from)
+                .unwrap_or_else(|| self.project_dir.join("target")))
+        }
+    }
+
+    fn cargo_build_bin_path(
+        &self,
+        build: &options::BuildOptions,
+        fuzz_target: &str,
+    ) -> Result<PathBuf> {
+        let profile_subdir = if build.dev { "debug" } else { "release" };
+
+        let bin_path = self
+            .target_dir(&build)?
+            .join(&build.triple)
+            .join(profile_subdir)
+            .join(fuzz_target);
+        Ok(bin_path)
+    }
+
     pub fn exec_build(
         &self,
         mode: options::BuildMode,
@@ -284,15 +314,8 @@ impl FuzzProject {
             cmd.arg("--bins");
         }
 
-        if let Some(target_dir) = &build.target_dir {
-            cmd.arg("--target-dir").arg(target_dir);
-        } else if build.coverage {
-            // To ensure that fuzzing and coverage-output generation can run in parallel, we
-            // produce a separate binary for the coverage command.
-            let target_dir = env::current_dir()?
-                .join("target")
-                .join(default_target())
-                .join("coverage");
+        if build.target_dir.is_some() || build.coverage {
+            let target_dir = self.target_dir(&build)?;
             cmd.arg("--target-dir").arg(target_dir);
         }
 
@@ -687,7 +710,7 @@ impl FuzzProject {
         coverage_dir: &Path,
         input_file: &Path,
     ) -> Result<(Command, String)> {
-        let mut cmd = self.cargo_run(&coverage.build, &coverage.target)?;
+        let mut cmd = Command::new(self.cargo_build_bin_path(&coverage.build, &coverage.target)?);
 
         // Raw coverage data will be saved in `coverage/<target>` directory.
         let input_file_name = input_file
