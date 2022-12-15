@@ -266,6 +266,27 @@ impl FuzzProject {
         Ok(cmd)
     }
 
+    // note: never returns Ok(None) if build.coverage is true
+    fn target_dir(&self, build: &options::BuildOptions) -> Result<Option<PathBuf>> {
+        // Use the user-provided target directory, if provided. Otherwise if building for coverage,
+        // use the coverage directory
+        if let Some(target_dir) = build.target_dir.as_ref() {
+            return Ok(Some(PathBuf::from(target_dir)));
+        } else if build.coverage {
+            // To ensure that fuzzing and coverage-output generation can run in parallel, we
+            // produce a separate binary for the coverage command.
+            let current_dir = env::current_dir()?;
+            Ok(Some(
+                current_dir
+                    .join("target")
+                    .join(default_target())
+                    .join("coverage"),
+            ))
+        } else {
+            Ok(None)
+        }
+    }
+
     pub fn exec_build(
         &self,
         mode: options::BuildMode,
@@ -284,15 +305,7 @@ impl FuzzProject {
             cmd.arg("--bins");
         }
 
-        if let Some(target_dir) = &build.target_dir {
-            cmd.arg("--target-dir").arg(target_dir);
-        } else if build.coverage {
-            // To ensure that fuzzing and coverage-output generation can run in parallel, we
-            // produce a separate binary for the coverage command.
-            let target_dir = env::current_dir()?
-                .join("target")
-                .join(default_target())
-                .join("coverage");
+        if let Some(target_dir) = self.target_dir(&build)? {
             cmd.arg("--target-dir").arg(target_dir);
         }
 
@@ -687,7 +700,23 @@ impl FuzzProject {
         coverage_dir: &Path,
         input_file: &Path,
     ) -> Result<(Command, String)> {
-        let mut cmd = self.cargo_run(&coverage.build, &coverage.target)?;
+        let bin_path = {
+            let profile_subdir = if coverage.build.dev {
+                "debug"
+            } else {
+                "release"
+            };
+
+            let target_dir = self
+                .target_dir(&coverage.build)?
+                .expect("target dir for coverage command should never be None");
+            target_dir
+                .join(&coverage.build.triple)
+                .join(profile_subdir)
+                .join(&coverage.target)
+        };
+
+        let mut cmd = Command::new(bin_path);
 
         // Raw coverage data will be saved in `coverage/<target>` directory.
         let input_file_name = input_file
