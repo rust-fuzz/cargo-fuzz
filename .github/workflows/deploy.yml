@@ -27,7 +27,7 @@ jobs:
       id: tagName
       run: |
         VERSION=$(cargo pkgid | cut -d# -f2 | cut -d: -f2)
-        echo "::set-output name=tag::$VERSION"
+        echo "tag=$VERSION" >> $GITHUB_OUTPUT
 
     - name: Build package
       id: package
@@ -37,8 +37,8 @@ jobs:
         ARCHIVE_NAME="cargo-fuzz-${{ steps.tagName.outputs.tag }}-$ARCHIVE_TARGET"
         ARCHIVE_FILE="${ARCHIVE_NAME}.zip"
         7z a ${ARCHIVE_FILE} ./target/release/cargo-fuzz.exe
-        echo "::set-output name=file::${ARCHIVE_FILE}"
-        echo "::set-output name=name::${ARCHIVE_NAME}.zip"
+        echo "file=$ARCHIVE_FILE" >> $GITHUB_OUTPUT
+        echo "name=$ARCHIVE_NAME.zip" >> $GITHUB_OUTPUT
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v2
@@ -85,7 +85,7 @@ jobs:
       id: tagName
       run: |
         VERSION=$(cargo pkgid | cut -d# -f2 | cut -d: -f2)
-        echo "::set-output name=tag::$VERSION"
+        echo "tag=$VERSION" >> $GITHUB_OUTPUT
 
     - name: Build package
       id: package
@@ -93,8 +93,8 @@ jobs:
         TAR_FILE=cargo-fuzz-${{ steps.tagName.outputs.tag }}-${{ matrix.target }}
         cd target/${{ matrix.target }}/release
         tar -czvf $GITHUB_WORKSPACE/$TAR_FILE.tar.gz cargo-fuzz
-        echo ::set-output "name=name::${TAR_FILE}"
-        echo ::set-output "name=file::${TAR_FILE}.tar.gz "
+        echo "name=$TAR_FILE" >> $GITHUB_OUTPUT
+        echo "file=$TAR_FILE.tar.gz" >> $GITHUB_OUTPUT
 
     - name: Upload artifacts
       uses: actions/upload-artifact@v2
@@ -124,7 +124,7 @@ jobs:
         id: tagName
         run: |
           VERSION=$(cargo pkgid | cut -d# -f2 | cut -d: -f2)
-          echo "::set-output name=tag::$VERSION"
+          echo "tag=$VERSION" >> $GITHUB_OUTPUT
 
       - name: Download artifacts
         uses: actions/download-artifact@v2
