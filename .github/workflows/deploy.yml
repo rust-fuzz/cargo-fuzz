@@ -116,10 +116,6 @@ jobs:
         run: |
           rustup toolchain install stable --profile minimal --no-self-update
 
-      - name: Create Cargo.lock
-        run: |
-          cargo update
-
       - name: Get version
         id: tagName
         run: |
