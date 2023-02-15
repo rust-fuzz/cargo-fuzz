@@ -130,7 +130,7 @@ jobs:
       - name: Create a release
         uses: softprops/action-gh-release@v1
         with:
-          name: v${{ steps.tagName.outputs.tag }}
+          name: ${{ steps.tagName.outputs.tag }}
           files: |
             ./binaries/**/*.zip
             ./binaries/**/*.tar.gz
