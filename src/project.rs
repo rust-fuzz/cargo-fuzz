@@ -671,11 +671,11 @@ impl FuzzProject {
 
         let (coverage_out_raw_dir, coverage_out_file) = self.coverage_for(&coverage.target)?;
 
-        // Generating individual coverage data for all files in corpora.
-        for input_file in readable_input_files {
-            let (mut cmd, file_name) =
-                self.create_coverage_cmd(coverage, &coverage_out_raw_dir, &input_file.path())?;
-            eprintln!("Generating coverage data for {:?}", file_name);
+        for corpus in corpora.iter() {
+            // _tmp_dir is deleted when it goes of of scope.
+            let (mut cmd, _tmp_dir) =
+                self.create_coverage_cmd(coverage, &coverage_out_raw_dir, &corpus.as_path())?;
+            eprintln!("Generating coverage data for corpus {:?}", corpus);
             let status = cmd
                 .status()
                 .with_context(|| format!("Failed to run command: {:?}", cmd))?;
@@ -688,7 +688,6 @@ impl FuzzProject {
                 .context("Failed to generage coverage data")?;
             }
         }
-
         self.merge_coverage(&coverage_out_raw_dir, &coverage_out_file)?;
 
         Ok(())
@@ -698,8 +697,8 @@ impl FuzzProject {
         &self,
         coverage: &options::Coverage,
         coverage_dir: &Path,
-        input_file: &Path,
-    ) -> Result<(Command, String)> {
+        corpus_dir: &Path,
+    ) -> Result<(Command, tempfile::TempDir)> {
         let bin_path = {
             let profile_subdir = if coverage.build.dev {
                 "debug"
@@ -719,21 +718,24 @@ impl FuzzProject {
         let mut cmd = Command::new(bin_path);
 
         // Raw coverage data will be saved in `coverage/<target>` directory.
-        let input_file_name = input_file
+        let corpus_dir_name = corpus_dir
             .file_name()
             .and_then(|x| x.to_str())
-            .with_context(|| format!("Corpus contains file with invalid name {:?}", input_file))?;
+            .with_context(|| format!("Invalid corpus directory: {:?}", corpus_dir))?;
         cmd.env(
             "LLVM_PROFILE_FILE",
-            coverage_dir.join(format!("default-{}.profraw", input_file_name)),
+            coverage_dir.join(format!("default-{}.profraw", corpus_dir_name)),
         );
-        cmd.arg(input_file);
+        cmd.arg("-merge=1");
+        let dummy_corpus = tempfile::tempdir()?;
+        cmd.arg(dummy_corpus.path());
+        cmd.arg(corpus_dir);
 
         for arg in &coverage.args {
             cmd.arg(arg);
         }
 
-        Ok((cmd, input_file_name.to_string()))
+        Ok((cmd, dummy_corpus))
     }
 
     fn merge_coverage(&self, profdata_raw_path: &Path, profdata_out_path: &Path) -> Result<()> {
