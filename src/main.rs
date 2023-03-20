@@ -59,11 +59,11 @@ include:
 
   * `-runs=<number>`: Will limit the number of tries (runs) before it gives up
 
-  * `-max_total_time=<time>`: Will limit the amount of time to fuzz before it
-    gives up
+  * `-max_total_time=<time>`: Will limit the amount of time (seconds) to
+    fuzz before it gives up
 
-  * `-timeout=<time>`: Will limit the amount of time for a single run before it
-    considers that run a failure
+  * `-timeout=<time>`: Will limit the amount of time (seconds) for a single
+    run before it considers that run a failure
 
   * `-only_ascii`: Only provide ASCII input
 
