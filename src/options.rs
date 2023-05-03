@@ -88,7 +88,13 @@ pub struct BuildOptions {
     /// Currently this conflicts with coverage instrumentation but -Zbuild-std enables detecting
     /// more bugs so this option defaults to true, but when using `cargo fuzz coverage` it
     /// defaults to false.
-    pub build_std: Option<bool>,
+    pub build_std: bool,
+
+    #[arg(short, long = "careful")]
+    /// enable "careful" mode: inspired by https://github.com/RalfJung/cargo-careful, this enables
+    /// building the fuzzing harness along with the standard library (implies --build-std) with
+    /// debug assertions and extra const UB and init checks.
+    pub careful_mode: bool,
 
     #[arg(long = "target", default_value(crate::utils::default_target()))]
     /// Target triple of the fuzz target
@@ -217,7 +223,8 @@ mod test {
             no_default_features: false,
             all_features: false,
             features: None,
-            build_std: None,
+            build_std: false,
+            careful_mode: false,
             sanitizer: Sanitizer::Address,
             triple: String::from(crate::utils::default_target()),
             unstable_flags: Vec::new(),

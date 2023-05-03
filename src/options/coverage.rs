@@ -27,7 +27,7 @@ pub struct Coverage {
 
 impl RunCommand for Coverage {
     fn run_command(&mut self) -> Result<()> {
-        if self.build.build_std.unwrap_or(false) {
+        if self.build.build_std {
             bail!(
                 "-Zbuild-std is currently incompatible with -Zinstrument-coverage, \
                 see https://github.com/rust-lang/wg-cargo-std-aware/issues/63"
