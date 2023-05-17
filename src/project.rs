@@ -163,11 +163,16 @@ impl FuzzProject {
             cmd.arg("-Z").arg("build-std");
         }
 
-        let mut rustflags: String = "-Cpasses=sancov-module \
+        let mut rustflags = String::new();
+
+        if !build.no_rust_fuzzing {
+            rustflags.push_str(
+                "-Cpasses=sancov-module \
                                      -Cllvm-args=-sanitizer-coverage-level=4 \
                                      -Cllvm-args=-sanitizer-coverage-inline-8bit-counters \
-                                     -Cllvm-args=-sanitizer-coverage-pc-table"
-            .to_owned();
+                                     -Cllvm-args=-sanitizer-coverage-pc-table",
+            );
+        }
 
         if !build.no_trace_compares {
             rustflags.push_str(" -Cllvm-args=-sanitizer-coverage-trace-compares");
