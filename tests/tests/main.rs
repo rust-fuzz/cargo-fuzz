@@ -175,6 +175,9 @@ fn run_no_crash() {
                 use libfuzzer_sys::fuzz_target;
 
                 fuzz_target!(|data: &[u8]| {
+                    #[cfg(fuzzing_repro)]
+                    eprintln!("Reproducing a crash");
+
                     run_no_crash::pass_fuzzing(data);
                 });
             "#,
@@ -188,7 +191,10 @@ fn run_no_crash() {
         .arg("--")
         .arg("-runs=1000")
         .assert()
-        .stderr(predicate::str::contains("Done 1000 runs"))
+        .stderr(
+            predicate::str::contains("Done 1000 runs")
+                .and(predicate::str::contains("Reproducing a crash").not()),
+        )
         .success();
 }
 
@@ -429,6 +435,9 @@ fn run_one_input() {
                 use libfuzzer_sys::fuzz_target;
 
                 fuzz_target!(|data: &[u8]| {
+                    #[cfg(fuzzing_repro)]
+                    eprintln!("Reproducing a crash");
+
                     assert!(data.is_empty());
                 });
             "#,
@@ -444,9 +453,11 @@ fn run_one_input() {
         .arg(corpus.join("pass"))
         .assert()
         .stderr(
-            predicate::str::contains("Running 1 inputs 1 time(s) each.").and(
-                predicate::str::contains("Running: fuzz/corpus/run_one/pass"),
-            ),
+            predicate::str::contains("Running 1 inputs 1 time(s) each.")
+                .and(predicate::str::contains(
+                    "Running: fuzz/corpus/run_one/pass",
+                ))
+                .and(predicate::str::contains("Reproducing a crash")),
         )
         .success();
 }
