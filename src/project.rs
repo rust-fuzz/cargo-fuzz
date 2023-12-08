@@ -53,8 +53,7 @@ impl FuzzProject {
     pub fn init(init: &options::Init, fuzz_dir_opt: Option<PathBuf>) -> Result<Self> {
         let project = Self::manage_initial_instance(fuzz_dir_opt)?;
         let fuzz_project = project.fuzz_dir();
-        let root_project_manifest_path = project.project_dir.join("Cargo.toml");
-        let manifest = Manifest::parse(&root_project_manifest_path)?;
+        let manifest = Manifest::parse()?;
 
         // TODO: check if the project is already initialized
         fs::create_dir(fuzz_project)
@@ -931,16 +930,9 @@ pub struct Manifest {
 }
 
 impl Manifest {
-    pub fn parse(path: &Path) -> Result<Self> {
+    pub fn parse() -> Result<Self> {
         let metatdata = MetadataCommand::new().exec()?;
-        let package = metatdata
-            .packages
-            .iter()
-            .find(|p| p.manifest_path == path)
-            .expect({
-                let path = path.display();
-                &format!("could not find package for {}", path)
-            });
+        let package = metatdata.packages.first().expect("at least one package");
         let crate_name = package.name.clone();
         let edition = Some(String::from(package.edition.as_str()));
 
