@@ -140,6 +140,7 @@ impl ProjectBuilder {
             "Cargo.toml",
             &format!(
                 r#"
+                    [workspace]
                     [package]
                     name = "{name}"
                     version = "1.0.0"
