@@ -932,7 +932,12 @@ pub struct Manifest {
 impl Manifest {
     pub fn parse() -> Result<Self> {
         let metatdata = MetadataCommand::new().exec()?;
-        let package = metatdata.packages.first().expect("at least one package");
+        let package = metatdata.packages.first().with_context(|| {
+            anyhow!(
+                "Expected to find at least one package in {}",
+                metatdata.target_directory
+            )
+        })?;
         let crate_name = package.name.clone();
         let edition = Some(String::from(package.edition.as_str()));
 
