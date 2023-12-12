@@ -1,6 +1,7 @@
 use crate::options::{self, BuildMode, BuildOptions, Sanitizer};
 use crate::utils::default_target;
 use anyhow::{anyhow, bail, Context, Result};
+use cargo_metadata::MetadataCommand;
 use std::collections::HashSet;
 use std::io::Read;
 use std::io::Write;
@@ -52,8 +53,7 @@ impl FuzzProject {
     pub fn init(init: &options::Init, fuzz_dir_opt: Option<PathBuf>) -> Result<Self> {
         let project = Self::manage_initial_instance(fuzz_dir_opt)?;
         let fuzz_project = project.fuzz_dir();
-        let root_project_manifest_path = project.project_dir.join("Cargo.toml");
-        let manifest = Manifest::parse(&root_project_manifest_path)?;
+        let manifest = Manifest::parse()?;
 
         // TODO: check if the project is already initialized
         fs::create_dir(fuzz_project)
@@ -930,26 +930,17 @@ pub struct Manifest {
 }
 
 impl Manifest {
-    pub fn parse(path: &Path) -> Result<Self> {
-        let contents = fs::read(path)?;
-        let value: toml::Value = toml::from_slice(&contents)?;
-        let package = value
-            .as_table()
-            .and_then(|v| v.get("package"))
-            .and_then(toml::Value::as_table);
-        let crate_name = package
-            .and_then(|v| v.get("name"))
-            .and_then(toml::Value::as_str)
-            .with_context(|| anyhow!("{} (package.name) is malformed", path.display()))?
-            .to_owned();
-        let edition = package
-            .expect("can't be None at this point")
-            .get("edition")
-            .map(|v| match v.as_str() {
-                Some(s) => Ok(s.to_owned()),
-                None => bail!("{} (package.edition) is malformed", path.display()),
-            })
-            .transpose()?;
+    pub fn parse() -> Result<Self> {
+        let metatdata = MetadataCommand::new().exec()?;
+        let package = metatdata.packages.first().with_context(|| {
+            anyhow!(
+                "Expected to find at least one package in {}",
+                metatdata.target_directory
+            )
+        })?;
+        let crate_name = package.name.clone();
+        let edition = Some(String::from(package.edition.as_str()));
+
         Ok(Manifest {
             crate_name,
             edition,
