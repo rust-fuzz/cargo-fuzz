@@ -224,7 +224,8 @@ fn run_with_crash() {
         .env("RUST_BACKTRACE", "1")
         .assert()
         .stderr(
-            predicate::str::contains("panicked at 'I'm afraid of number 7'")
+            predicate::str::contains("thread '<unnamed>' panicked at")
+                .and(predicate::str::contains("I'm afraid of number 7"))
                 .and(predicate::str::contains("ERROR: libFuzzer: deadly signal"))
                 .and(predicate::str::contains("run_with_crash::fail_fuzzing"))
                 .and(predicate::str::contains(
@@ -317,7 +318,8 @@ fn run_without_sanitizer_with_crash() {
         .env("RUST_BACKTRACE", "1")
         .assert()
         .stderr(
-            predicate::str::contains("panicked at 'I'm afraid of number 7'")
+            predicate::str::contains("thread '<unnamed>' panicked at")
+                .and(predicate::str::contains("I'm afraid of number 7"))
                 .and(predicate::str::contains("ERROR: libFuzzer: deadly signal"))
                 .and(predicate::str::contains("run_without_sanitizer_with_crash::fail_fuzzing"))
                 .and(predicate::str::contains(
