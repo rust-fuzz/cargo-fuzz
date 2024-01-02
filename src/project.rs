@@ -699,7 +699,14 @@ impl FuzzProject {
                 .context("Failed to generage coverage data")?;
             }
         }
-        self.merge_coverage(&coverage_out_raw_dir, &coverage_out_file)?;
+
+        let mut profdata_bin_path = coverage.llvm_path.clone().unwrap_or(rustlib()?);
+        profdata_bin_path.push(format!("llvm-profdata{}", env::consts::EXE_SUFFIX));
+        self.merge_coverage(
+            &profdata_bin_path,
+            &coverage_out_raw_dir,
+            &coverage_out_file,
+        )?;
 
         Ok(())
     }
@@ -749,10 +756,13 @@ impl FuzzProject {
         Ok((cmd, dummy_corpus))
     }
 
-    fn merge_coverage(&self, profdata_raw_path: &Path, profdata_out_path: &Path) -> Result<()> {
-        let mut profdata_path = rustlib()?;
-        profdata_path.push(format!("llvm-profdata{}", env::consts::EXE_SUFFIX));
-        let mut merge_cmd = Command::new(profdata_path);
+    fn merge_coverage(
+        &self,
+        profdata_bin_path: &Path,
+        profdata_raw_path: &Path,
+        profdata_out_path: &Path,
+    ) -> Result<()> {
+        let mut merge_cmd = Command::new(profdata_bin_path);
         merge_cmd.arg("merge").arg("-sparse");
         merge_cmd.arg(profdata_raw_path);
         merge_cmd.arg("-o").arg(profdata_out_path);
