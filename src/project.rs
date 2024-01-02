@@ -17,8 +17,6 @@ const DEFAULT_FUZZ_DIR: &str = "fuzz";
 pub struct FuzzProject {
     /// The project with fuzz targets
     fuzz_dir: PathBuf,
-    /// The project being fuzzed
-    project_dir: PathBuf,
     targets: Vec<String>,
 }
 
@@ -885,7 +883,6 @@ impl FuzzProject {
         };
         Ok(FuzzProject {
             fuzz_dir,
-            project_dir,
             targets: Vec::new(),
         })
     }
