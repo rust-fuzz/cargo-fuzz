@@ -1,3 +1,5 @@
+use std::path::PathBuf;
+
 use crate::{
     options::{BuildOptions, FuzzDirWrapper},
     project::FuzzProject,
@@ -13,6 +15,10 @@ pub struct Coverage {
 
     #[command(flatten)]
     pub fuzz_dir_wrapper: FuzzDirWrapper,
+
+    /// Sets the path to the LLVM bin directory. By default, it will use the one installed with rustc
+    #[arg(long)]
+    pub llvm_path: Option<PathBuf>,
 
     /// Name of the fuzz target
     pub target: String,
