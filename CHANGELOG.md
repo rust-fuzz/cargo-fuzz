@@ -28,6 +28,27 @@ Released YYYY-MM-DD.
 
 --------------------------------------------------------------------------------
 
+## 0.11.3
+
+Released 2024-01-02.
+
+### Added
+
+* Added a "careful mode" inspired by the `cargo-careful` project
+* Added the ability to use a custom LLVM binaries install path instead of the
+  default distributed by `rustup`
+
+### Changed
+
+* Improved code coverage collection by using the `-merge=1` option
+* Reproducing crashes will now build with `---cfg fuzzing_repro`
+
+### Fixed
+
+* Initializing a fuzz directory in a workspace is fixed
+
+--------------------------------------------------------------------------------
+
 ## 0.11.2
 
 Released 2023-02-13.
