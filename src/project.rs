@@ -938,11 +938,11 @@ pub struct Manifest {
 
 impl Manifest {
     pub fn parse() -> Result<Self> {
-        let metatdata = MetadataCommand::new().exec()?;
-        let package = metatdata.packages.first().with_context(|| {
+        let metadata = MetadataCommand::new().no_deps().exec()?;
+        let package = metadata.packages.first().with_context(|| {
             anyhow!(
                 "Expected to find at least one package in {}",
-                metatdata.target_directory
+                metadata.target_directory
             )
         })?;
         let crate_name = package.name.clone();
