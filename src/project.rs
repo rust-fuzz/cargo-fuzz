@@ -66,7 +66,11 @@ impl FuzzProject {
         let mut cargo = fs::File::create(&cargo_toml)
             .with_context(|| format!("failed to create {}", cargo_toml.display()))?;
         cargo
-            .write_fmt(toml_template!(manifest.crate_name, manifest.edition))
+            .write_fmt(toml_template!(
+                manifest.crate_name,
+                manifest.edition,
+                init.fuzzing_workspace
+            ))
             .with_context(|| format!("failed to write to {}", cargo_toml.display()))?;
 
         let gitignore = fuzz_project.join(".gitignore");
@@ -137,7 +141,7 @@ impl FuzzProject {
             .arg(&build.triple);
         // we default to release mode unless debug mode is explicitly requested
         if !build.dev {
-            cmd.arg("--release");
+            cmd.args(["--release", "--config", "profile.release.debug=true"]);
         }
         if build.verbose {
             cmd.arg("--verbose");

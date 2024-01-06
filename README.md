@@ -26,6 +26,12 @@ $ cargo install -f cargo-fuzz
 
 Initialize a `cargo fuzz` project for your crate!
 
+### Add `fuzz` directory to `workspace.members` in root `Cargo.toml`
+
+`fuzz` directory can be either a part of an existing workspace (default)
+or use an independent workspace. If latter is desired, you can use
+`cargo fuzz init --fuzzing-workspace=true`.
+
 ### `cargo fuzz add <target>`
 
 Create a new fuzzing target!

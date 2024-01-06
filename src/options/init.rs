@@ -8,6 +8,10 @@ pub struct Init {
     /// Name of the first fuzz target to create
     pub target: String,
 
+    #[arg(long, value_parser = clap::builder::BoolishValueParser::new(), default_value = "false")]
+    /// Whether to create a separate workspace for fuzz targets crate
+    pub fuzzing_workspace: Option<bool>,
+
     #[command(flatten)]
     pub fuzz_dir_wrapper: FuzzDirWrapper,
 }
