@@ -99,6 +99,40 @@ fn init_finds_parent_project() {
 }
 
 #[test]
+fn init_defines_correct_dependency() {
+    let project_name = "project_with_some_dep";
+    let project = project(project_name)
+        .file(
+            "Cargo.toml",
+            &format!(
+                r#"
+                    [workspace]
+                    [package]
+                    name = "{name}"
+                    version = "1.0.0"
+
+                    [dependencies]
+                    matches = "0.1.10"
+                "#,
+                name = project_name
+            ),
+        )
+        .build();
+    project
+        .cargo_fuzz()
+        .current_dir(project.root().join("src"))
+        .arg("init")
+        .assert()
+        .success();
+    assert!(project.fuzz_dir().is_dir());
+    assert!(project.fuzz_cargo_toml().is_file());
+    let cargo_toml = fs::read_to_string(project.fuzz_cargo_toml()).unwrap();
+    let expected_dependency_attrs =
+        &format!("[dependencies.{name}]\npath = \"..\"", name = project_name);
+    assert!(cargo_toml.contains(expected_dependency_attrs));
+}
+
+#[test]
 fn add() {
     let project = project("add").with_fuzz().build();
     project
