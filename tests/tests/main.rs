@@ -17,9 +17,14 @@ fn help() {
 }
 
 #[test]
-fn init() {
+fn init_with_workspace() {
     let project = project("init").build();
-    project.cargo_fuzz().arg("init").assert().success();
+    project
+        .cargo_fuzz()
+        .arg("init")
+        .arg("--fuzzing-workspace=true")
+        .assert()
+        .success();
     assert!(project.fuzz_dir().is_dir());
     assert!(project.fuzz_cargo_toml().is_file());
     assert!(project.fuzz_targets_dir().is_dir());
@@ -35,13 +40,37 @@ fn init() {
 }
 
 #[test]
-fn init_with_target() {
+fn init_no_workspace() {
+    let mut project_builder = project("init_no_workspace");
+    let project = project_builder.build();
+    project.cargo_fuzz().arg("init").assert().success();
+    project_builder.set_workspace_members(&["fuzz"]);
+
+    assert!(project.fuzz_dir().is_dir());
+    assert!(project.fuzz_cargo_toml().is_file());
+    assert!(project.fuzz_targets_dir().is_dir());
+    assert!(project.fuzz_target_path("fuzz_target_1").is_file());
+    project
+        .cargo_fuzz()
+        .arg("run")
+        .arg("fuzz_target_1")
+        .arg("--fuzz-dir")
+        .arg(project.fuzz_dir().to_str().unwrap())
+        .arg("--")
+        .arg("-runs=1")
+        .assert()
+        .success();
+}
+
+#[test]
+fn init_with_target_and_workspace() {
     let project = project("init_with_target").build();
     project
         .cargo_fuzz()
         .arg("init")
         .arg("-t")
         .arg("custom_target_name")
+        .arg("--fuzzing-workspace=true")
         .assert()
         .success();
     assert!(project.fuzz_dir().is_dir());

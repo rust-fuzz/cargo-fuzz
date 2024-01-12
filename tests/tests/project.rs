@@ -118,6 +118,26 @@ impl ProjectBuilder {
         self.file(path, body)
     }
 
+    pub fn set_workspace_members(&mut self, members: &[&str]) -> &mut Self {
+        let cargo_toml = self.root().join("Cargo.toml");
+        let manifest = fs::read_to_string(cargo_toml.clone()).unwrap();
+
+        let with_members = manifest.replace(
+            "[workspace]",
+            &format!(
+                "[workspace]\nmembers=[{}]",
+                members
+                    .iter()
+                    .map(|&v| format!("\"{}\"", v))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+        );
+
+        fs::write(cargo_toml, with_members).unwrap();
+        self
+    }
+
     pub fn file<B: AsRef<Path>>(&mut self, path: B, body: &str) -> &mut Self {
         self._file(path.as_ref(), body);
         self

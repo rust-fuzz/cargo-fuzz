@@ -1,5 +1,5 @@
 macro_rules! toml_template {
-    ($name:expr, $edition:expr) => {
+    ($name:expr, $edition:expr, $fuzzing_workspace:expr) => {
         format_args!(
             r##"[package]
 name = "{name}-fuzz"
@@ -14,20 +14,22 @@ libfuzzer-sys = "0.4"
 
 [dependencies.{name}]
 path = ".."
-
-# Prevent this from interfering with workspaces
-[workspace]
-members = ["."]
-
-[profile.release]
-debug = 1
-"##,
+{workspace}"##,
             name = $name,
             edition = if let Some(edition) = &$edition {
                 format!("edition = \"{}\"\n", edition)
             } else {
                 String::new()
             },
+            workspace = if let Some(true) = $fuzzing_workspace {
+                r##"
+# Use independent workspace for fuzzers
+[workspace]
+members = ["."]
+"##
+            } else {
+                ""
+            }
         )
     };
 }
@@ -41,6 +43,7 @@ name = "{0}"
 path = "fuzz_targets/{0}.rs"
 test = false
 doc = false
+bench = false
 "#,
             $name
         )
