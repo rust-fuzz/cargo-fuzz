@@ -11,8 +11,7 @@ $ cargo install cargo-fuzz
 ```
 
 Note: `libFuzzer` needs LLVM sanitizer support, so this only works on x86-64 Linux, x86-64 macOS
-and Apple-Silicon (aarch64) macOS for now. This also needs a nightly compiler since it uses some
-unstable command-line flags. You'll also need a C++ compiler with C++11 support.
+and Apple-Silicon (aarch64) macOS for now. You'll also need a C++ compiler with C++11 support.
 
 If you have an old version of `cargo fuzz`, you can upgrade with this command:
 
