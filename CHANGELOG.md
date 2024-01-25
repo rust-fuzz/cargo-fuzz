@@ -28,6 +28,22 @@ Released YYYY-MM-DD.
 
 --------------------------------------------------------------------------------
 
+## 0.11.4
+
+Released 2024-01-25.
+
+### Changed
+
+* `cargo fuzz init` will not put the generated fuzzing crate in a separate
+  workspace by default anymore. There is an option to generate a workspace if
+  that is still the desired behavior: `--fuzzing-workspace=true`.
+
+### Fixed
+
+* Fixed `cargo fuzz init`'s generated dependencies in `Cargo.toml`.
+
+--------------------------------------------------------------------------------
+
 ## 0.11.3
 
 Released 2024-01-02.
