@@ -126,13 +126,6 @@ pub struct BuildOptions {
     #[arg(long)]
     pub no_cfg_fuzzing: bool,
 
-    #[arg(skip = false)]
-    /// Add the 'cfg(fuzzing-repro)' compilation configuration. This build
-    /// option will be automatically used when running `cargo fuzz run <target>
-    /// <corpus>`. The option will not be shown to the user, which is ensured by
-    /// the `skip` attribute.
-    pub cfg_fuzzing_repro: bool,
-
     #[arg(long)]
     /// Don't build with the `sanitizer-coverage-trace-compares` LLVM argument
     ///
@@ -239,7 +232,6 @@ mod test {
             coverage: false,
             strip_dead_code: false,
             no_cfg_fuzzing: false,
-            cfg_fuzzing_repro: false,
             no_trace_compares: false,
         };
 

@@ -179,10 +179,6 @@ impl FuzzProject {
             rustflags.push_str(" --cfg fuzzing");
         }
 
-        if build.cfg_fuzzing_repro {
-            rustflags.push_str(" --cfg fuzzing_repro");
-        }
-
         if !build.strip_dead_code {
             rustflags.push_str(" -Clink-dead-code");
         }
