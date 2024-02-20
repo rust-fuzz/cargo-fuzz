@@ -28,6 +28,20 @@ Released YYYY-MM-DD.
 
 --------------------------------------------------------------------------------
 
+## 0.12.0
+
+Released 2024-02-20.
+
+### Removed
+
+* Removed the definition of `cfg(fuzzing_repro)` from `cargo fuzz run` on select
+  inputs. This caused too many recompiles in practice during the common fuzzing
+  workflow where you are fuzzing, find a crash, repeatedly run the fuzzer on
+  just the crashing input until you fix the crash, and then start fuzzing in
+  general again and the process repeats.
+
+--------------------------------------------------------------------------------
+
 ## 0.11.4
 
 Released 2024-01-25.
