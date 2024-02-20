@@ -37,7 +37,6 @@ pub struct Run {
 impl RunCommand for Run {
     fn run_command(&mut self) -> Result<()> {
         let project = FuzzProject::new(self.fuzz_dir_wrapper.fuzz_dir.to_owned())?;
-        self.build.cfg_fuzzing_repro = !self.corpus.is_empty();
         project.exec_fuzz(self)
     }
 }
