@@ -4,6 +4,7 @@ use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::sync::atomic::{AtomicUsize, Ordering::SeqCst};
+use toml;
 
 pub fn target_tests() -> PathBuf {
     let mut path = env::current_exe().unwrap();
@@ -106,12 +107,12 @@ impl ProjectBuilder {
             r#"
                 [[bin]]
                 name = "{name}"
-                path = "{path}"
+                path = {path}
                 test = false
                 doc = false
             "#,
             name = name,
-            path = path.display(),
+            path = toml::to_string(&path).unwrap(),
         )
         .unwrap();
 
