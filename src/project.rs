@@ -13,6 +13,11 @@ use std::{
 };
 
 const DEFAULT_FUZZ_DIR: &str = "fuzz";
+const CACHE_TAG_HEADER: &[u8; 194] = b"Signature: 8a477f597d28d172789f06886806bc55
+# This file is a cache directory tag created by cargo-fuzz.
+# For information about cache directory tags, see:
+#	http://www.brynosaurus.com/cachedir/
+";
 
 pub struct FuzzProject {
     /// The project with fuzz targets
@@ -809,6 +814,18 @@ impl FuzzProject {
         fs::create_dir_all(&coverage_raw).with_context(|| {
             format!("could not make a coverage directory at {:?}", coverage_raw)
         })?;
+        // (re)create a CACHEDIR.TAG
+        let mut cache_path = coverage_data
+            .parent()
+            .expect("path to coverage must contain at least coverage/<target>!")
+            .to_owned();
+        cache_path.push("CACHEDIR.TAG");
+        let mut cache_file = fs::File::create(&cache_path)
+            .with_context(|| format!("could not create a CACHEDIR.TAG at {:?}", cache_path))?;
+        cache_file
+            .write_all(CACHE_TAG_HEADER)
+            .with_context(|| format!("could not write cache tag contents to {:?}", cache_path))?;
+
         Ok((coverage_raw, coverage_data))
     }
 
@@ -818,6 +835,18 @@ impl FuzzProject {
         p.push(target);
         fs::create_dir_all(&p)
             .with_context(|| format!("could not make a corpus directory at {:?}", p))?;
+        // (re)create a CACHEDIR.TAG
+        let mut cache_path = p
+            .parent()
+            .expect("path to corpus must contain at least corpus/<target>!")
+            .to_owned();
+        cache_path.push("CACHEDIR.TAG");
+        let mut cache_file = fs::File::create(&cache_path)
+            .with_context(|| format!("could not create a CACHEDIR.TAG at {:?}", cache_path))?;
+        cache_file
+            .write_all(CACHE_TAG_HEADER)
+            .with_context(|| format!("could not write cache tag contents to {:?}", cache_path))?;
+
         Ok(p)
     }
 
@@ -832,6 +861,18 @@ impl FuzzProject {
 
         fs::create_dir_all(&p)
             .with_context(|| format!("could not make a artifact directory at {:?}", p))?;
+
+        // (re)create a CACHEDIR.TAG
+        let mut cache_path = p
+            .parent()
+            .expect("path to artifacts must contain at least artifacts/<target>!")
+            .to_owned();
+        cache_path.push("CACHEDIR.TAG");
+        let mut cache_file = fs::File::create(&cache_path)
+            .with_context(|| format!("could not create a CACHEDIR.TAG at {:?}", cache_path))?;
+        cache_file
+            .write_all(CACHE_TAG_HEADER)
+            .with_context(|| format!("could not write cache tag contents to {:?}", cache_path))?;
 
         Ok(p)
     }

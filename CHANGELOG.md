@@ -3,6 +3,7 @@
 Released YYYY-MM-DD.
 
 ### Added
+- creation of `CACHEDIR.TAG` inside `artifacts`, `corpus` and `coverage` directories
 
 * TODO (or remove section if none)
 
