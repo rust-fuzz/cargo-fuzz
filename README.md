@@ -11,7 +11,7 @@ $ cargo install cargo-fuzz
 ```
 
 Note: `libFuzzer` needs LLVM sanitizer support, so this only works on x86-64 and Aarch64,
-and only on Unix-lile operating systems (not Windows). You'll also need a C++ compiler with C++11 support.
+and only on Unix-like operating systems (not Windows). You'll also need a C++ compiler with C++11 support.
 
 ## Usage
 
