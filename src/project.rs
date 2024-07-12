@@ -204,7 +204,7 @@ impl FuzzProject {
                     // Memory sanitizer requires more flags to function than others:
                     // https://doc.rust-lang.org/unstable-book/compiler-flags/sanitizer.html#memorysanitizer
                     rustflags.push_str(&format!(
-                        " {sanitizer_flag}=memory {sanitizer_flag}-memory-track-origins"
+                        " {sanitizer_flag}=memory -Zsanitizer-memory-track-origins"
                     ))
                 }
                 _ => rustflags.push_str(&format!(" {sanitizer_flag}={}", build.sanitizer)),
