@@ -40,18 +40,32 @@ impl FromStr for RustVersion {
     type Err = &'static str;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let s = s.strip_prefix("rustc ").ok_or("Rust version string does not start with 'rustc'!")?;
+        let s = s
+            .strip_prefix("rustc ")
+            .ok_or("Rust version string does not start with 'rustc'!")?;
         let mut iter = s.split('.');
-        let major: u32 = iter.next().ok_or("No major version found in `rustc --version` output!")?.parse().map_err(|_| "Failed to parse major version in `rustc --version` output as a number!")?;
-        let minor: u32 = iter.next().ok_or("No minor version found in `rustc --version` output!")?.parse().map_err(|_| "Failed to parse minor version in `rustc --version` output as a number!")?;
-        Ok(RustVersion {major, minor})
+        let major: u32 = iter
+            .next()
+            .ok_or("No major version found in `rustc --version` output!")?
+            .parse()
+            .map_err(|_| {
+                "Failed to parse major version in `rustc --version` output as a number!"
+            })?;
+        let minor: u32 = iter
+            .next()
+            .ok_or("No minor version found in `rustc --version` output!")?
+            .parse()
+            .map_err(|_| {
+                "Failed to parse minor version in `rustc --version` output as a number!"
+            })?;
+        Ok(RustVersion { major, minor })
     }
 }
 
 /// Checks whether the compiler supports sanitizers on stable channel.
 /// Such compilers (even nightly) do not support `-Zsanitizer` flag,
 /// and require a different combination of flags even on nightly.
-/// 
+///
 /// Stabilization PR with more info: <https://github.com/rust-lang/rust/pull/123617>
 impl RustVersion {
     fn has_sanitizers_on_stable(version: &Self) -> bool {
@@ -73,7 +87,13 @@ mod tests {
     fn test_parsing_stable() {
         let version_string = "rustc 1.78.0 (9b00956e5 2024-04-29)";
         let result = RustVersion::from_str(version_string).unwrap();
-        assert_eq!(result, RustVersion { major: 1, minor: 78});
+        assert_eq!(
+            result,
+            RustVersion {
+                major: 1,
+                minor: 78
+            }
+        );
         assert!(!is_nightly(version_string))
     }
 
@@ -81,7 +101,13 @@ mod tests {
     fn test_parsing_nightly() {
         let version_string = "rustc 1.81.0-nightly (d7f6ebace 2024-06-16)";
         let result = RustVersion::from_str(version_string).unwrap();
-        assert_eq!(result, RustVersion { major: 1, minor: 81});
+        assert_eq!(
+            result,
+            RustVersion {
+                major: 1,
+                minor: 81
+            }
+        );
         assert!(is_nightly(version_string))
     }
 
@@ -89,7 +115,13 @@ mod tests {
     fn test_parsing_future_stable() {
         let version_string = "rustc 2.356.1 (deadfaced 2029-04-01)";
         let result = RustVersion::from_str(version_string).unwrap();
-        assert_eq!(result, RustVersion { major: 2, minor: 356});
+        assert_eq!(
+            result,
+            RustVersion {
+                major: 2,
+                minor: 356
+            }
+        );
         assert!(!is_nightly(version_string))
     }
 }
