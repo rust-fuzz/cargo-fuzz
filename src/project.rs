@@ -199,7 +199,7 @@ impl FuzzProject {
 
             // Set rustc CLI arguments for the chosen sanitizer
             match build.sanitizer {
-                Sanitizer::None => {} // should be unreachable
+                Sanitizer::None => {} // needs no flags
                 Sanitizer::Memory => {
                     // Memory sanitizer requires more flags to function than others:
                     // https://doc.rust-lang.org/unstable-book/compiler-flags/sanitizer.html#memorysanitizer
@@ -207,10 +207,7 @@ impl FuzzProject {
                         " {sanitizer_flag}=memory {sanitizer_flag}-memory-track-origins"
                     ))
                 }
-                _ => rustflags.push_str(&format!(
-                    " {sanitizer_flag}={sanitizer}",
-                    sanitizer = build.sanitizer
-                )),
+                _ => rustflags.push_str(&format!(" {sanitizer_flag}={}", build.sanitizer)),
             }
 
             // Not all sanitizers are stabilized on all platforms.
