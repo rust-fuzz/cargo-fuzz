@@ -2,22 +2,24 @@
 
 use std::{cmp::Ordering, process::Command, str::FromStr};
 
+use anyhow::Context;
+
 /// Checks if the compiler currently in use is nightly, or `RUSTC_BOOTSTRAP` is set to get nightly features on stable
 pub fn is_nightly(version_string: &str) -> bool {
     version_string.contains("-nightly ") || std::env::var_os("RUSTC_BOOTSTRAP").is_some()
 }
 
 /// Returns the output of `rustc --version`
-pub fn rust_version_string() -> String {
+pub fn rust_version_string() -> anyhow::Result<String> {
     // The path to rustc can be specified via an environment variable:
     // https://doc.rust-lang.org/cargo/reference/environment-variables.html#environment-variables-cargo-reads
     let rustc_path = std::env::var_os("RUSTC").unwrap_or("rustc".into());
     let raw_output = Command::new(rustc_path)
         .arg("--version")
         .output()
-        .expect("Failed to invoke rustc! Is it in your $PATH?")
+        .context("Failed to invoke rustc! Is it in your $PATH?")?
         .stdout;
-    String::from_utf8(raw_output).expect("`rustc --version` returned non-text output somehow")
+    String::from_utf8(raw_output).context("`rustc --version` returned non-text output somehow")
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd)]
