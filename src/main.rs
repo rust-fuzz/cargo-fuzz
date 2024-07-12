@@ -13,6 +13,7 @@ mod templates;
 mod options;
 mod project;
 mod utils;
+mod rustc_version;
 
 static FUZZ_TARGETS_DIR_OLD: &str = "fuzzers";
 static FUZZ_TARGETS_DIR: &str = "fuzz_targets";
