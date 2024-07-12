@@ -22,18 +22,6 @@ pub fn rust_version_string() -> anyhow::Result<String> {
     String::from_utf8(raw_output).context("`rustc --version` returned non-text output somehow")
 }
 
-/// Returns either "-Zsanitizer" or "-Csanitizer" depending on the compiler version.
-///
-/// Stabilization of sanitizers has removed the "-Zsanitizer" flag, even on nightly,
-/// so we have to choose the appropriate flag for the compiler version.
-/// More info: <https://github.com/rust-lang/rust/pull/123617>
-pub fn sanitizer_flag(version: &RustVersion) -> anyhow::Result<&'static str> {
-    match version.has_sanitizers_on_stable() {
-        true => Ok("-Csanitizer"),
-        false => Ok("-Zsanitizer"),
-    }
-}
-
 #[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd)]
 pub struct RustVersion {
     pub major: u32,

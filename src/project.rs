@@ -1,5 +1,5 @@
 use crate::options::{self, BuildMode, BuildOptions, Sanitizer};
-use crate::rustc_version::{is_nightly, rust_version_string, sanitizer_flag, RustVersion};
+use crate::rustc_version::{is_nightly, rust_version_string, RustVersion};
 use crate::utils::default_target;
 use anyhow::{anyhow, bail, Context, Result};
 use cargo_metadata::MetadataCommand;
@@ -195,7 +195,10 @@ impl FuzzProject {
             let rust_version_string = rust_version_string()?;
             let rust_version =
                 RustVersion::from_str(&rust_version_string).map_err(|e| anyhow::anyhow!(e))?;
-            let sanitizer_flag = sanitizer_flag(&rust_version)?;
+            let sanitizer_flag = match rust_version.has_sanitizers_on_stable() {
+                true => "-Csanitizer",
+                false => "-Zsanitizer",
+            };
 
             // Set rustc CLI arguments for the chosen sanitizer
             match build.sanitizer {
