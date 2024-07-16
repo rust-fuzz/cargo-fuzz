@@ -189,8 +189,7 @@ impl FuzzProject {
         }
 
         if !matches!(build.sanitizer, Sanitizer::None) {
-            // Select the appropriate sanitizer flag for the given rustc version:
-            // either -Zsanitizer or -Csanitizer.
+            // Select the appropriate sanitizer flag for the given rustc version
             let rust_version = RustVersion::discover()?;
             let sanitizer_flag = match rust_version.has_sanitizers_on_stable() {
                 true => "-Csanitizer",
