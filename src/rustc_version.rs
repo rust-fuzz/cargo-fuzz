@@ -5,12 +5,12 @@ use std::{cmp::Ordering, process::Command, str::FromStr};
 use anyhow::Context;
 
 /// Checks if the compiler currently in use is nightly, or `RUSTC_BOOTSTRAP` is set to get nightly features on stable
-pub fn is_nightly(version_string: &str) -> bool {
+fn is_nightly(version_string: &str) -> bool {
     version_string.contains("-nightly ") || std::env::var_os("RUSTC_BOOTSTRAP").is_some()
 }
 
 /// Returns the output of `rustc --version`
-pub fn rust_version_string() -> anyhow::Result<String> {
+fn rust_version_string() -> anyhow::Result<String> {
     // The path to rustc can be specified via an environment variable:
     // https://doc.rust-lang.org/cargo/reference/environment-variables.html#environment-variables-cargo-reads
     let rustc_path = std::env::var_os("RUSTC").unwrap_or("rustc".into());
@@ -27,6 +27,7 @@ pub struct RustVersion {
     pub major: u32,
     pub minor: u32,
     // we don't care about the patch version and it's a bit of a pain to parse
+    pub nightly: bool,
 }
 
 impl Ord for RustVersion {
@@ -35,6 +36,14 @@ impl Ord for RustVersion {
             Ordering::Equal => self.minor.cmp(&other.minor),
             other => other,
         }
+    }
+}
+
+impl RustVersion {
+    pub fn discover() -> anyhow::Result<Self> {
+        let version_string = rust_version_string()?;
+        let me = Self::from_str(&version_string).map_err(|e| anyhow::anyhow!(e))?;
+        Ok(me)
     }
 }
 
@@ -60,7 +69,12 @@ impl FromStr for RustVersion {
             .map_err(|_| {
                 "Failed to parse minor version in `rustc --version` output as a number!"
             })?;
-        Ok(RustVersion { major, minor })
+        let nightly = is_nightly(s);
+        Ok(RustVersion {
+            major,
+            minor,
+            nightly,
+        })
     }
 }
 
@@ -76,6 +90,7 @@ impl RustVersion {
         let release_that_stabilized_sanitizers = RustVersion {
             major: 1,
             minor: 85,
+            nightly: false,
         };
         self >= &release_that_stabilized_sanitizers
     }
@@ -93,10 +108,10 @@ mod tests {
             result,
             RustVersion {
                 major: 1,
-                minor: 78
+                minor: 78,
+                nightly: false,
             }
         );
-        assert!(!is_nightly(version_string))
     }
 
     #[test]
@@ -107,10 +122,10 @@ mod tests {
             result,
             RustVersion {
                 major: 1,
-                minor: 81
+                minor: 81,
+                nightly: true,
             }
         );
-        assert!(is_nightly(version_string))
     }
 
     #[test]
@@ -121,9 +136,9 @@ mod tests {
             result,
             RustVersion {
                 major: 2,
-                minor: 356
+                minor: 356,
+                nightly: false,
             }
         );
-        assert!(!is_nightly(version_string))
     }
 }

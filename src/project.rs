@@ -1,5 +1,5 @@
 use crate::options::{self, BuildMode, BuildOptions, Sanitizer};
-use crate::rustc_version::{is_nightly, rust_version_string, RustVersion};
+use crate::rustc_version::RustVersion;
 use crate::utils::default_target;
 use anyhow::{anyhow, bail, Context, Result};
 use cargo_metadata::MetadataCommand;
@@ -7,7 +7,6 @@ use std::collections::HashSet;
 use std::io::Read;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 use std::{
     env, ffi, fs,
     process::{Command, Stdio},
@@ -192,9 +191,7 @@ impl FuzzProject {
         if !matches!(build.sanitizer, Sanitizer::None) {
             // Select the appropriate sanitizer flag for the given rustc version:
             // either -Zsanitizer or -Csanitizer.
-            let rust_version_string = rust_version_string()?;
-            let rust_version =
-                RustVersion::from_str(&rust_version_string).map_err(|e| anyhow::anyhow!(e))?;
+            let rust_version = RustVersion::discover()?;
             let sanitizer_flag = match rust_version.has_sanitizers_on_stable() {
                 true => "-Csanitizer",
                 false => "-Zsanitizer",
@@ -219,7 +216,7 @@ impl FuzzProject {
             // whenever we're on nightly on a recent enough compiler,
             // and let the compiler show an error message
             // if the user tries to enable a sanitizer not supported on their stable compiler.
-            if is_nightly(&rust_version_string) && rust_version.has_sanitizers_on_stable() {
+            if rust_version.nightly && rust_version.has_sanitizers_on_stable() {
                 rustflags.push_str(" -Zunstable-options")
             }
         }
