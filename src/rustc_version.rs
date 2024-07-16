@@ -88,8 +88,8 @@ impl RustVersion {
         // TODO: the release that stabilizes sanitizers is not currently known.
         // This value is a PLACEHOLDER.
         let release_that_stabilized_sanitizers = RustVersion {
-            major: 1,
-            minor: 85,
+            major: u32::MAX,
+            minor: u32::MAX,
             nightly: false,
         };
         self >= &release_that_stabilized_sanitizers
