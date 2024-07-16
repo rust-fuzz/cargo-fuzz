@@ -212,7 +212,7 @@ impl FuzzProject {
 
             // Not all sanitizers are stabilized on all platforms.
             // It is infeasible to keep up this code to date with the list.
-            // So we just set `-Zunstable-options`` required for some sanitizers
+            // So we just set `-Zunstable-options` required for some sanitizers
             // whenever we're on nightly on a recent enough compiler,
             // and let the compiler show an error message
             // if the user tries to enable a sanitizer not supported on their stable compiler.
