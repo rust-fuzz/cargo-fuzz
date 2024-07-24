@@ -106,12 +106,12 @@ impl ProjectBuilder {
             r#"
                 [[bin]]
                 name = "{name}"
-                path = "{path}"
+                path = {path}
                 test = false
                 doc = false
             "#,
             name = name,
-            path = path.display(),
+            path = toml::to_string(&path).unwrap(),
         )
         .unwrap();
 
