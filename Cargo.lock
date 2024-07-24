@@ -71,6 +71,7 @@ dependencies = [
  "anyhow",
  "assert_cmd",
  "cargo_metadata",
+ "cc",
  "clap",
  "current_platform",
  "predicates",
@@ -104,9 +105,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.0.77"
+version = "1.1.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e9f73505338f7d905b19d18738976aae232eb46b8efc15554ffc56deb5d9ebe4"
+checksum = "2aba8f4e9906c7ce3c73463f62a7f0c65183ada1a2d47e397cc8810827f9694f"
 
 [[package]]
 name = "cfg-if"

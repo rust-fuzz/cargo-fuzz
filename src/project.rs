@@ -2,6 +2,7 @@ use crate::options::{self, BuildMode, BuildOptions, Sanitizer};
 use crate::utils::default_target;
 use anyhow::{anyhow, bail, Context, Result};
 use cargo_metadata::MetadataCommand;
+use cc::windows_registry::VsVers;
 use std::collections::HashSet;
 use std::io::Read;
 use std::io::Write;
@@ -452,6 +453,30 @@ impl FuzzProject {
 
         if run.jobs != 1 {
             cmd.arg(format!("-fork={}", run.jobs));
+        }
+
+        #[cfg(target_env = "msvc")]
+        {
+            use crate::utils::{append_to_pathvar, get_asan_path};
+            // On Windows asan is in a DLL. This DLL is not on PATH by default, so the recommended
+            // action is to add the directory to PATH when running
+
+            match (get_asan_path(), cc::windows_registry::find_vs_version()) {
+                (None | Some(_), Ok(VsVers::Vs14 | VsVers::Vs15))
+                    if run.build.sanitizer == Sanitizer::Address =>
+                {
+                    bail!("AddressSanitizer is not supported on this MSVC version, 2019 or later is required.")
+                }
+                (None, Ok(_) | Err(_)) if run.build.sanitizer == Sanitizer::Address => {
+                    bail!("could not find AddressSanitizer DLL")
+                }
+                // If we didn't find it, but asan is not required, then do nothing.
+                (None, Ok(_) | Err(_)) => (),
+                (Some(asan), Ok(_) | Err(_)) => {
+                    let new_path = append_to_pathvar(&asan).unwrap_or(asan.into_os_string());
+                    cmd.env("PATH", new_path);
+                }
+            }
         }
 
         // When libfuzzer finds failing inputs, those inputs will end up in the
