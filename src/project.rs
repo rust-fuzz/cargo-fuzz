@@ -1,5 +1,5 @@
 use crate::options::{self, BuildMode, BuildOptions, Sanitizer};
-use crate::utils::default_target;
+use crate::utils::{create_job_object, default_target};
 use anyhow::{anyhow, bail, Context, Result};
 use cargo_metadata::MetadataCommand;
 use cc::windows_registry::VsVers;
@@ -477,6 +477,8 @@ impl FuzzProject {
                     cmd.env("PATH", new_path);
                 }
             }
+
+            create_job_object()?;
         }
 
         // When libfuzzer finds failing inputs, those inputs will end up in the
