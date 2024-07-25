@@ -188,17 +188,24 @@ impl FuzzProject {
             rustflags.push_str(" -Cinstrument-coverage");
         }
 
-        match build.sanitizer {
-            Sanitizer::None => {}
-            Sanitizer::Memory => {
-                // Memory sanitizer requires more flags to function than others:
-                // https://doc.rust-lang.org/unstable-book/compiler-flags/sanitizer.html#memorysanitizer
-                rustflags.push_str(" -Zsanitizer=memory -Zsanitizer-memory-track-origins")
+        if cfg!(windows) {
+            match build.sanitizer {
+                Sanitizer::Address | Sanitizer::None => rustflags.push_str(" -Zsanitizer=address"),
+                sanitizer => bail!("Windows does not support sanitizer '{sanitizer}'"),
             }
-            _ => rustflags.push_str(&format!(
-                " -Zsanitizer={sanitizer}",
-                sanitizer = build.sanitizer
-            )),
+        } else {
+            match build.sanitizer {
+                Sanitizer::None => {}
+                Sanitizer::Memory => {
+                    // Memory sanitizer requires more flags to function than others:
+                    // https://doc.rust-lang.org/unstable-book/compiler-flags/sanitizer.html#memorysanitizer
+                    rustflags.push_str(" -Zsanitizer=memory -Zsanitizer-memory-track-origins")
+                }
+                _ => rustflags.push_str(&format!(
+                    " -Zsanitizer={sanitizer}",
+                    sanitizer = build.sanitizer
+                )),
+            }
         }
 
         if build.careful_mode {
@@ -462,17 +469,13 @@ impl FuzzProject {
             // action is to add the directory to PATH when running
 
             match (get_asan_path(), cc::windows_registry::find_vs_version()) {
-                (None | Some(_), Ok(VsVers::Vs14 | VsVers::Vs15))
-                    if run.build.sanitizer == Sanitizer::Address =>
-                {
+                (_, Ok(VsVers::Vs14 | VsVers::Vs15)) => {
                     bail!("AddressSanitizer is not supported on this MSVC version, 2019 or later is required.")
                 }
-                (None, Ok(_) | Err(_)) if run.build.sanitizer == Sanitizer::Address => {
+                (None, _) => {
                     bail!("could not find AddressSanitizer DLL")
                 }
-                // If we didn't find it, but asan is not required, then do nothing.
-                (None, Ok(_) | Err(_)) => (),
-                (Some(asan), Ok(_) | Err(_)) => {
+                (Some(asan), _) => {
                     let new_path = append_to_pathvar(&asan).unwrap_or(asan.into_os_string());
                     cmd.env("PATH", new_path);
                 }
