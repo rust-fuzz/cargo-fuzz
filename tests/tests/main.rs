@@ -770,8 +770,13 @@ fn build_all() {
 
     let build_dir = project.fuzz_build_dir().join("release");
 
-    let a_bin = build_dir.join("build_all_a");
-    let b_bin = build_dir.join("build_all_b");
+    let mut a_bin = build_dir.join("build_all_a");
+    let mut b_bin = build_dir.join("build_all_b");
+
+    if cfg!(windows) {
+        a_bin.set_extension("exe");
+        b_bin.set_extension("exe");
+    }
 
     // Remove the files we just built.
     fs::remove_file(&a_bin).unwrap();
