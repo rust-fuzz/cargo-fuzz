@@ -21,6 +21,10 @@ toml = "0.5.9"
 rustc_version = "0.4.0"
 cargo_metadata = "0.18.1"
 
+[target.'cfg(target_env = "msvc")'.dependencies]
+cc = "1.1"
+windows-sys = { version = "0.52", features = ["Win32_Foundation", "Win32_Security","Win32_System_Threading", "Win32_System_JobObjects"] }
+
 [dev-dependencies]
 assert_cmd = "2.0.7"
 predicates = "2.1.4"

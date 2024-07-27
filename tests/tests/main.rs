@@ -103,12 +103,14 @@ fn init_twice() {
         .cargo_fuzz()
         .arg("init")
         .assert()
-        .stderr(predicates::str::contains("File exists (os error 17)").and(
-            predicates::str::contains(format!(
-                "failed to create directory {}",
-                project.fuzz_dir().display()
-            )),
-        ))
+        .stderr(
+            predicates::str::contains("File exists (os error 17)")
+                .or(predicates::str::contains("os error 183"))
+                .and(predicates::str::contains(format!(
+                    "failed to create directory {}",
+                    project.fuzz_dir().display()
+                ))),
+        )
         .failure();
 }
 
@@ -203,8 +205,10 @@ fn add_twice() {
         .arg("new_fuzz_target")
         .assert()
         .stderr(
-            predicate::str::contains("could not add target")
-                .and(predicate::str::contains("File exists (os error 17)")),
+            predicate::str::contains("could not add target").and(
+                predicate::str::contains("File exists (os error 17)")
+                    .or(predicate::str::contains("os error 80")),
+            ),
         )
         .failure();
 }
@@ -510,7 +514,8 @@ fn run_one_input() {
         .assert()
         .stderr(
             predicate::str::contains("Running 1 inputs 1 time(s) each.").and(
-                predicate::str::contains("Running: fuzz/corpus/run_one/pass"),
+                predicate::str::contains("Running: fuzz/corpus/run_one/pass")
+                    .or(predicates::str::contains(r"fuzz\corpus\run_one\pass")),
             ),
         )
         .success();
@@ -551,7 +556,8 @@ fn run_a_few_inputs() {
         .assert()
         .stderr(
             predicate::str::contains("Running 4 inputs 1 time(s) each.").and(
-                predicate::str::contains("Running: fuzz/corpus/run_few/pass"),
+                predicate::str::contains("Running: fuzz/corpus/run_few/pass")
+                    .or(predicates::str::contains(r"fuzz\corpus\run_few\pass")),
             ),
         )
         .success();
@@ -591,7 +597,12 @@ fn run_alt_corpus() {
         .assert()
         .stderr(
             predicate::str::contains("3 files found in fuzz/alt-corpus/run_alt")
-                .and(predicate::str::contains("fuzz/corpus/run_alt").not())
+                .or(predicates::str::contains(r"fuzz\alt-corpus\run_alt"))
+                .and(
+                    predicate::str::contains("fuzz/corpus/run_alt")
+                        .or(predicates::str::contains(r"fuzz\corpus\run_alt"))
+                        .not(),
+                )
                 // libFuzzer will always test the empty input, so the number of
                 // runs performed is always one more than the number of files in
                 // the corpus.
@@ -766,8 +777,13 @@ fn build_all() {
 
     let build_dir = project.fuzz_build_dir().join("release");
 
-    let a_bin = build_dir.join("build_all_a");
-    let b_bin = build_dir.join("build_all_b");
+    let mut a_bin = build_dir.join("build_all_a");
+    let mut b_bin = build_dir.join("build_all_b");
+
+    if cfg!(windows) {
+        a_bin.set_extension("exe");
+        b_bin.set_extension("exe");
+    }
 
     // Remove the files we just built.
     fs::remove_file(&a_bin).unwrap();
@@ -806,8 +822,13 @@ fn build_one() {
     project.cargo_fuzz().arg("build").assert().success();
 
     let build_dir = project.fuzz_build_dir().join("release");
-    let a_bin = build_dir.join("build_one_a");
-    let b_bin = build_dir.join("build_one_b");
+    let mut a_bin = build_dir.join("build_one_a");
+    let mut b_bin = build_dir.join("build_one_b");
+
+    if cfg!(windows) {
+        a_bin.set_extension("exe");
+        b_bin.set_extension("exe");
+    }
 
     // Remove the files we just built.
     fs::remove_file(&a_bin).unwrap();
@@ -857,8 +878,16 @@ fn build_dev() {
 
     let build_dir = project.fuzz_build_dir().join("debug");
 
-    let a_bin = build_dir.join("build_dev_a");
-    let b_bin = build_dir.join("build_dev_b");
+    let a_bin = build_dir.join(if cfg!(windows) {
+        "build_dev_a.exe"
+    } else {
+        "build_dev_a"
+    });
+    let b_bin = build_dir.join(if cfg!(windows) {
+        "build_dev_b.exe"
+    } else {
+        "build_dev_b"
+    });
 
     // Remove the files we just built.
     fs::remove_file(&a_bin).unwrap();
@@ -901,7 +930,11 @@ fn build_stripping_dead_code() {
 
     let build_dir = project.fuzz_build_dir().join("debug");
 
-    let a_bin = build_dir.join("build_strip_a");
+    let a_bin = build_dir.join(if cfg!(windows) {
+        "build_strip_a.exe"
+    } else {
+        "build_strip_a"
+    });
     assert!(a_bin.is_file(), "Not a file: {}", a_bin.display());
 }
 

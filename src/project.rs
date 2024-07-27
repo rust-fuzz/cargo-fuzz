@@ -1,7 +1,8 @@
 use crate::options::{self, BuildMode, BuildOptions, Sanitizer};
-use crate::utils::default_target;
+use crate::utils::{create_job_object, default_target};
 use anyhow::{anyhow, bail, Context, Result};
 use cargo_metadata::MetadataCommand;
+use cc::windows_registry::VsVers;
 use std::collections::HashSet;
 use std::io::Read;
 use std::io::Write;
@@ -187,17 +188,24 @@ impl FuzzProject {
             rustflags.push_str(" -Cinstrument-coverage");
         }
 
-        match build.sanitizer {
-            Sanitizer::None => {}
-            Sanitizer::Memory => {
-                // Memory sanitizer requires more flags to function than others:
-                // https://doc.rust-lang.org/unstable-book/compiler-flags/sanitizer.html#memorysanitizer
-                rustflags.push_str(" -Zsanitizer=memory -Zsanitizer-memory-track-origins")
+        if cfg!(windows) {
+            match build.sanitizer {
+                Sanitizer::Address | Sanitizer::None => rustflags.push_str(" -Zsanitizer=address"),
+                sanitizer => bail!("Windows does not support sanitizer '{sanitizer}'"),
             }
-            _ => rustflags.push_str(&format!(
-                " -Zsanitizer={sanitizer}",
-                sanitizer = build.sanitizer
-            )),
+        } else {
+            match build.sanitizer {
+                Sanitizer::None => {}
+                Sanitizer::Memory => {
+                    // Memory sanitizer requires more flags to function than others:
+                    // https://doc.rust-lang.org/unstable-book/compiler-flags/sanitizer.html#memorysanitizer
+                    rustflags.push_str(" -Zsanitizer=memory -Zsanitizer-memory-track-origins")
+                }
+                _ => rustflags.push_str(&format!(
+                    " -Zsanitizer={sanitizer}",
+                    sanitizer = build.sanitizer
+                )),
+            }
         }
 
         if build.careful_mode {
@@ -272,6 +280,28 @@ impl FuzzProject {
         artifact_arg.push(self.artifacts_for(fuzz_target)?);
         cmd.arg("--").arg(artifact_arg);
 
+        #[cfg(target_env = "msvc")]
+        {
+            use crate::utils::{append_to_pathvar, get_asan_path};
+            // On Windows asan is in a DLL. This DLL is not on PATH by default, so the recommended
+            // action is to add the directory to PATH when running
+
+            match (get_asan_path(), cc::windows_registry::find_vs_version()) {
+                (_, Ok(VsVers::Vs14 | VsVers::Vs15)) => {
+                    bail!("AddressSanitizer is not supported on this MSVC version, 2019 or later is required.")
+                }
+                (None, _) => {
+                    bail!("could not find AddressSanitizer DLL")
+                }
+                (Some(asan), _) => {
+                    let new_path = append_to_pathvar(&asan).unwrap_or(asan.into_os_string());
+                    cmd.env("PATH", new_path);
+                }
+            }
+
+            create_job_object()?;
+        }
+
         Ok(cmd)
     }
 
@@ -335,7 +365,7 @@ impl FuzzProject {
     ) -> Result<HashSet<PathBuf>> {
         let mut artifacts = HashSet::new();
 
-        let artifacts_dir = self.artifacts_for(target)?;
+        let artifacts_dir = dbg!(self.artifacts_for(target)?);
 
         for entry in fs::read_dir(&artifacts_dir).with_context(|| {
             format!(
