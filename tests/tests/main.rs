@@ -861,8 +861,16 @@ fn build_dev() {
 
     let build_dir = project.fuzz_build_dir().join("debug");
 
-    let a_bin = build_dir.join("build_dev_a");
-    let b_bin = build_dir.join("build_dev_b");
+    let a_bin = build_dir.join(if cfg!(windows) {
+        "build_dev_a.exe"
+    } else {
+        "build_dev_a"
+    });
+    let b_bin = build_dir.join(if cfg!(windows) {
+        "build_dev_b.exe"
+    } else {
+        "build_dev_b"
+    });
 
     // Remove the files we just built.
     fs::remove_file(&a_bin).unwrap();
