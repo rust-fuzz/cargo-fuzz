@@ -205,8 +205,10 @@ fn add_twice() {
         .arg("new_fuzz_target")
         .assert()
         .stderr(
-            predicate::str::contains("could not add target")
-                .and(predicate::str::contains("File exists (os error 17)")),
+            predicate::str::contains("could not add target").and(
+                predicate::str::contains("File exists (os error 17)")
+                    .or(predicate::str::contains("os error 80")),
+            ),
         )
         .failure();
 }
