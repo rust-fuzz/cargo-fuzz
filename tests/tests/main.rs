@@ -103,12 +103,14 @@ fn init_twice() {
         .cargo_fuzz()
         .arg("init")
         .assert()
-        .stderr(predicates::str::contains("File exists (os error 17)").and(
-            predicates::str::contains(format!(
-                "failed to create directory {}",
-                project.fuzz_dir().display()
-            )),
-        ))
+        .stderr(
+            predicates::str::contains("File exists (os error 17)")
+                .or(predicates::str::contains("os error 183"))
+                .and(predicates::str::contains(format!(
+                    "failed to create directory {}",
+                    project.fuzz_dir().display()
+                ))),
+        )
         .failure();
 }
 
