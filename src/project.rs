@@ -365,7 +365,7 @@ impl FuzzProject {
     ) -> Result<HashSet<PathBuf>> {
         let mut artifacts = HashSet::new();
 
-        let artifacts_dir = self.artifacts_for(target)?;
+        let artifacts_dir = dbg!(self.artifacts_for(target)?);
 
         for entry in fs::read_dir(&artifacts_dir).with_context(|| {
             format!(

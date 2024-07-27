@@ -514,7 +514,8 @@ fn run_one_input() {
         .assert()
         .stderr(
             predicate::str::contains("Running 1 inputs 1 time(s) each.").and(
-                predicate::str::contains("Running: fuzz/corpus/run_one/pass"),
+                predicate::str::contains("Running: fuzz/corpus/run_one/pass")
+                    .or(predicates::str::contains(r"fuzz\corpus\run_one\pass")),
             ),
         )
         .success();
