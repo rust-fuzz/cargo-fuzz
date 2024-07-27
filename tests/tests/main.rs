@@ -596,7 +596,12 @@ fn run_alt_corpus() {
         .assert()
         .stderr(
             predicate::str::contains("3 files found in fuzz/alt-corpus/run_alt")
-                .and(predicate::str::contains("fuzz/corpus/run_alt").not())
+                .or(predicates::str::contains(r"fuzz\alt-corpus\run_alt"))
+                .and(
+                    predicate::str::contains("fuzz/corpus/run_alt")
+                        .or(predicates::str::contains(r"fuzz\corpus\run_alt"))
+                        .not(),
+                )
                 // libFuzzer will always test the empty input, so the number of
                 // runs performed is always one more than the number of files in
                 // the corpus.
