@@ -280,6 +280,28 @@ impl FuzzProject {
         artifact_arg.push(self.artifacts_for(fuzz_target)?);
         cmd.arg("--").arg(artifact_arg);
 
+        #[cfg(target_env = "msvc")]
+        {
+            use crate::utils::{append_to_pathvar, get_asan_path};
+            // On Windows asan is in a DLL. This DLL is not on PATH by default, so the recommended
+            // action is to add the directory to PATH when running
+
+            match (get_asan_path(), cc::windows_registry::find_vs_version()) {
+                (_, Ok(VsVers::Vs14 | VsVers::Vs15)) => {
+                    bail!("AddressSanitizer is not supported on this MSVC version, 2019 or later is required.")
+                }
+                (None, _) => {
+                    bail!("could not find AddressSanitizer DLL")
+                }
+                (Some(asan), _) => {
+                    let new_path = append_to_pathvar(&asan).unwrap_or(asan.into_os_string());
+                    cmd.env("PATH", new_path);
+                }
+            }
+
+            create_job_object()?;
+        }
+
         Ok(cmd)
     }
 
@@ -460,28 +482,6 @@ impl FuzzProject {
 
         if run.jobs != 1 {
             cmd.arg(format!("-fork={}", run.jobs));
-        }
-
-        #[cfg(target_env = "msvc")]
-        {
-            use crate::utils::{append_to_pathvar, get_asan_path};
-            // On Windows asan is in a DLL. This DLL is not on PATH by default, so the recommended
-            // action is to add the directory to PATH when running
-
-            match (get_asan_path(), cc::windows_registry::find_vs_version()) {
-                (_, Ok(VsVers::Vs14 | VsVers::Vs15)) => {
-                    bail!("AddressSanitizer is not supported on this MSVC version, 2019 or later is required.")
-                }
-                (None, _) => {
-                    bail!("could not find AddressSanitizer DLL")
-                }
-                (Some(asan), _) => {
-                    let new_path = append_to_pathvar(&asan).unwrap_or(asan.into_os_string());
-                    cmd.env("PATH", new_path);
-                }
-            }
-
-            create_job_object()?;
         }
 
         // When libfuzzer finds failing inputs, those inputs will end up in the
