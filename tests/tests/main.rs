@@ -905,7 +905,11 @@ fn build_stripping_dead_code() {
 
     let build_dir = project.fuzz_build_dir().join("debug");
 
-    let a_bin = build_dir.join("build_strip_a");
+    let a_bin = build_dir.join(if cfg!(windows) {
+        "build_strip_a.exe"
+    } else {
+        "build_strip_a"
+    });
     assert!(a_bin.is_file(), "Not a file: {}", a_bin.display());
 }
 
