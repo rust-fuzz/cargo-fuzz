@@ -555,7 +555,8 @@ fn run_a_few_inputs() {
         .assert()
         .stderr(
             predicate::str::contains("Running 4 inputs 1 time(s) each.").and(
-                predicate::str::contains("Running: fuzz/corpus/run_few/pass"),
+                predicate::str::contains("Running: fuzz/corpus/run_few/pass")
+                    .or(predicates::str::contains(r"fuzz\corpus\run_few\pass")),
             ),
         )
         .success();
