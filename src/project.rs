@@ -1,4 +1,5 @@
 use crate::options::{self, BuildMode, BuildOptions, Sanitizer};
+use crate::rustc_version::RustVersion;
 use crate::utils::default_target;
 use anyhow::{anyhow, bail, Context, Result};
 use cargo_metadata::MetadataCommand;
@@ -187,17 +188,36 @@ impl FuzzProject {
             rustflags.push_str(" -Cinstrument-coverage");
         }
 
-        match build.sanitizer {
-            Sanitizer::None => {}
-            Sanitizer::Memory => {
-                // Memory sanitizer requires more flags to function than others:
-                // https://doc.rust-lang.org/unstable-book/compiler-flags/sanitizer.html#memorysanitizer
-                rustflags.push_str(" -Zsanitizer=memory -Zsanitizer-memory-track-origins")
+        if !matches!(build.sanitizer, Sanitizer::None) {
+            // Select the appropriate sanitizer flag for the given rustc version
+            let rust_version = RustVersion::discover()?;
+            let sanitizer_flag = match rust_version.has_sanitizers_on_stable() {
+                true => "-Csanitizer",
+                false => "-Zsanitizer",
+            };
+
+            // Set rustc CLI arguments for the chosen sanitizer
+            match build.sanitizer {
+                Sanitizer::None => {} // needs no flags
+                Sanitizer::Memory => {
+                    // Memory sanitizer requires more flags to function than others:
+                    // https://doc.rust-lang.org/unstable-book/compiler-flags/sanitizer.html#memorysanitizer
+                    rustflags.push_str(&format!(
+                        " {sanitizer_flag}=memory -Zsanitizer-memory-track-origins"
+                    ))
+                }
+                _ => rustflags.push_str(&format!(" {sanitizer_flag}={}", build.sanitizer)),
             }
-            _ => rustflags.push_str(&format!(
-                " -Zsanitizer={sanitizer}",
-                sanitizer = build.sanitizer
-            )),
+
+            // Not all sanitizers are stabilized on all platforms.
+            // It is infeasible to keep up this code to date with the list.
+            // So we just set `-Zunstable-options` required for some sanitizers
+            // whenever we're on nightly on a recent enough compiler,
+            // and let the compiler show an error message
+            // if the user tries to enable a sanitizer not supported on their stable compiler.
+            if rust_version.nightly && rust_version.has_sanitizers_on_stable() {
+                rustflags.push_str(" -Zunstable-options")
+            }
         }
 
         if build.careful_mode {

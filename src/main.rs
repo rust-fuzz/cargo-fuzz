@@ -12,6 +12,7 @@ use clap::Parser;
 mod templates;
 mod options;
 mod project;
+mod rustc_version;
 mod utils;
 
 static FUZZ_TARGETS_DIR_OLD: &str = "fuzzers";
