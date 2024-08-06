@@ -175,7 +175,7 @@ impl FuzzProject {
             rustflags.push_str(" -Cllvm-args=-sanitizer-coverage-trace-compares");
         }
 
-        if build.disable_branch_folding {
+        if build.disable_branch_folding.is_some_and(|v| v) {
             rustflags.push_str(" -Cllvm-args=-simplifycfg-branch-fold-threshold=0");
         }
 

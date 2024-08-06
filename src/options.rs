@@ -135,12 +135,12 @@ pub struct BuildOptions {
     /// available.
     pub no_trace_compares: bool,
 
-    #[arg(long, default_value = "true")]
+    #[arg(long)]
     /// Disable transformation of if-statements into `cmov` instructions (when this
     /// happens, we get no coverage feedback for that branch). Default setting is true.
     /// A further explanation can be found here:
     /// https://github.com/rust-fuzz/cargo-fuzz/pull/380#issue-2445529059
-    pub disable_branch_folding: bool,
+    pub disable_branch_folding: Option<bool>,
 }
 
 impl stdfmt::Display for BuildOptions {
@@ -240,7 +240,7 @@ mod test {
             strip_dead_code: false,
             no_cfg_fuzzing: false,
             no_trace_compares: false,
-            disable_branch_folding: true,
+            disable_branch_folding: None,
         };
 
         let opts = vec![
