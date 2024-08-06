@@ -135,7 +135,7 @@ pub struct BuildOptions {
     /// available.
     pub no_trace_compares: bool,
 
-    #[arg(long)]
+    #[arg(long, default_value = "true")]
     /// Disable transformation of if-statements into `cmov` instructions (when this
     /// happens, we get no coverage feedback for that branch). Default setting is true.
     /// A further explanation can be found here:
