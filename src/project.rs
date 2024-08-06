@@ -176,7 +176,7 @@ impl FuzzProject {
         }
 
         if build.disable_branch_folding {
-            rustflags.push_str("-Cllvm-args=-simplifycfg-branch-fold-threshold=0");
+            rustflags.push_str(" -Cllvm-args=-simplifycfg-branch-fold-threshold=0");
         }
 
         if !build.no_cfg_fuzzing {
