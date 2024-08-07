@@ -138,8 +138,32 @@ pub struct BuildOptions {
     #[arg(long)]
     /// Disable transformation of if-statements into `cmov` instructions (when this
     /// happens, we get no coverage feedback for that branch). Default setting is true.
-    /// A further explanation can be found here:
-    /// https://github.com/rust-fuzz/cargo-fuzz/pull/380#issue-2445529059
+    /// This is done by setting the `-simplifycfg-branch-fold-threshold=0` LLVM arg.
+    /// 
+    /// For example, in the following program shows the default coverage feedback when 
+    /// compiled with `-Copt-level=3`:
+    /// 
+    /// mark_covered(1); // mark edge 1 as covered
+    /// let mut res = 1;
+    /// if x > 5 && y < 6 {
+    ///    res = 2;
+    /// }
+    /// 
+    /// With `disable_branch_folding` enabled, the code compiles to be equivalent to:
+    /// 
+    /// mark_covered(1);
+    /// let mut res = 1;
+    /// if x > 5 {
+    ///     mark_covered(2);
+    ///     if y < 6 {
+    ///         mark_covered(3);
+    ///         res = 2;
+    ///     }
+    /// }
+    /// 
+    /// Note, that in the second program, there are now 2 new coverage feedback points,
+    /// and the fuzzer can store an input to the corpus at each condition that it passes;
+    /// giving it a better chance of producing an input that reaches `res = 2;`.
     pub disable_branch_folding: Option<bool>,
 }
 
