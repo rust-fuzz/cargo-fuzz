@@ -134,6 +134,37 @@ pub struct BuildOptions {
     /// the `*-trace-compares` instrumentation assumes that the instruction is
     /// available.
     pub no_trace_compares: bool,
+
+    #[arg(long)]
+    /// Disable transformation of if-statements into `cmov` instructions (when this
+    /// happens, we get no coverage feedback for that branch). Default setting is true.
+    /// This is done by setting the `-simplifycfg-branch-fold-threshold=0` LLVM arg.
+    ///
+    /// For example, in the following program shows the default coverage feedback when
+    /// compiled with `-Copt-level=3`:
+    ///
+    /// mark_covered(1); // mark edge 1 as covered
+    /// let mut res = 1;
+    /// if x > 5 && y < 6 {
+    ///    res = 2;
+    /// }
+    ///
+    /// With `disable_branch_folding` enabled, the code compiles to be equivalent to:
+    ///
+    /// mark_covered(1);
+    /// let mut res = 1;
+    /// if x > 5 {
+    ///     mark_covered(2);
+    ///     if y < 6 {
+    ///         mark_covered(3);
+    ///         res = 2;
+    ///     }
+    /// }
+    ///
+    /// Note, that in the second program, there are now 2 new coverage feedback points,
+    /// and the fuzzer can store an input to the corpus at each condition that it passes;
+    /// giving it a better chance of producing an input that reaches `res = 2;`.
+    pub disable_branch_folding: Option<bool>,
 }
 
 impl stdfmt::Display for BuildOptions {
@@ -233,6 +264,7 @@ mod test {
             strip_dead_code: false,
             no_cfg_fuzzing: false,
             no_trace_compares: false,
+            disable_branch_folding: None,
         };
 
         let opts = vec![
