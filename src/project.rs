@@ -747,10 +747,10 @@ impl FuzzProject {
     ) -> Result<(Command, tempfile::TempDir)> {
         let bin_path = {
             // See https://doc.rust-lang.org/cargo/guide/build-cache.html for the mapping.
-            let profile_subdir = if coverage.build.profile_name() == "dev" {
-                "debug"
-            } else {
-                "release"
+            let profile_subdir = match coverage.build.profile_name() {
+                "dev" | "test" => "debug",
+                "release" | "bench" => "release",
+                other => other,
             };
 
             let target_dir = self
