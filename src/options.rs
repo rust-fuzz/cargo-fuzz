@@ -167,6 +167,17 @@ pub struct BuildOptions {
     pub disable_branch_folding: Option<bool>,
 }
 
+impl BuildOptions {
+    pub fn profile_name(&self) -> &str {
+        // we default to release mode unless debug mode is explicitly requested
+        if !self.dev {
+            "release"
+        } else {
+            "dev"
+        }
+    }
+}
+
 impl stdfmt::Display for BuildOptions {
     fn fmt(&self, f: &mut stdfmt::Formatter) -> stdfmt::Result {
         if self.dev {

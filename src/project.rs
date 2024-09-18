@@ -140,18 +140,16 @@ impl FuzzProject {
             // --target=<TARGET> won't pass rustflags to build scripts
             .arg("--target")
             .arg(&build.triple);
-        // we default to release mode unless debug mode is explicitly requested
-        if !build.dev {
-            cmd.args([
-                "--release",
-                "--config",
-                "profile.release.debug=true",
-                "--config",
-                "profile.release.lto=false",
-            ]);
-        } else {
-            cmd.args(["--config", "profile.dev.lto=false"]);
-        }
+        let profile = build.profile_name();
+
+        cmd.args([
+            &format!("--profile={profile}"),
+            "--config",
+            &format!("profile.{profile}.debug=true"),
+            "--config",
+            &format!("profile.{profile}.lto=false"),
+        ]);
+
         if build.verbose {
             cmd.arg("--verbose");
         }
@@ -748,7 +746,8 @@ impl FuzzProject {
         corpus_dir: &Path,
     ) -> Result<(Command, tempfile::TempDir)> {
         let bin_path = {
-            let profile_subdir = if coverage.build.dev {
+            // See https://doc.rust-lang.org/cargo/guide/build-cache.html for the mapping.
+            let profile_subdir = if coverage.build.profile_name() == "dev" {
                 "debug"
             } else {
                 "release"
