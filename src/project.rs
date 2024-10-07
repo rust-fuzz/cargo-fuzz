@@ -15,6 +15,14 @@ use std::{
 
 const DEFAULT_FUZZ_DIR: &str = "fuzz";
 
+/// The name of the environment variable that is exposed to indicate a
+/// cargo-fuzz build is occurring.
+const BUILD_ENV_CARGO_FUZZ: &str = "CARGO_FUZZ";
+
+/// The name of the environment variable that exposes the cargo fuzz manifest
+/// path during builds.
+const BUILD_ENV_MANIFEST_DIR: &str = "CARGO_FUZZ_MANIFEST";
+
 pub struct FuzzProject {
     /// The project with fuzz targets
     fuzz_dir: PathBuf,
@@ -234,8 +242,27 @@ impl FuzzProject {
             rustflags.push_str(" -Cdebug-assertions");
         }
         if build.triple.contains("-msvc") {
-            // The entrypoint is in the bundled libfuzzer rlib, this gets the linker to find it.
+            // The entrypoint is in the bundled libfuzzer rlib, this gets the
+            // linker to find it.
             rustflags.push_str(" -Clink-arg=/include:main");
+
+            // NOTE: On Windows, if the user's fuzzing targets have a dependency
+            // on a local Rust DLL (with `crate-type` containing `["cdylib"]),
+            // the MSVC Linker will be unable to resolve the `main` symbol when
+            // linking the DLL. It will fail with this error:
+            //
+            //     LINK : error LNK2001: unresolved external symbol main
+            //     C:\....\depedency.dll : fatal error LNK1120: 1 unresolved externals
+            //
+            // We cannot remove the above argument from the rustc args *only*
+            // for the cdylib dependencies, so this fix will have to be on the
+            // user's side. To fix this, the user should add the following MSVC
+            // linker argument to their DLL's build script (`build.rs`):
+            //
+            //     println!("cargo:rustc-link-arg=/force:unresolved");
+            //
+            // See here for information on the `/force` MSVC linker argument:
+            // https://learn.microsoft.com/en-us/cpp/build/reference/force-force-file-output
         }
 
         // If release mode is enabled then we force 1 CGU to be used in rustc.
@@ -319,6 +346,39 @@ impl FuzzProject {
             Ok(None)
         }
     }
+    
+    // Helper function for `exec_build()` used to expose cargo-fuzz information
+    // via environment variables. Such environment variables can be used by fuzz
+    // target dependencies' build scripts to detect whether or not cargo-fuzz is
+    // responsible for the build.
+    //
+    // This is called directly before the `cargo build ...` command is executed.
+    fn build_env_expose(&self,
+                  _mode: options::BuildMode,
+                  _build: &options::BuildOptions,
+                  _fuzz_target: Option<&str>
+    ) -> Result<()> {
+        // expose a boolean-like environment variable to allow the detection of
+        // cargo-fuzz
+        env::set_var(BUILD_ENV_CARGO_FUZZ, "1");
+
+        // expose the path to the cargo-fuzz manifest:
+        let manifest_path = self.manifest_path();
+        env::set_var(BUILD_ENV_MANIFEST_DIR, manifest_path.as_os_str());
+
+        Ok(())
+    }
+    
+    // Helper function for `exe_build()` used to un-expose cargo-fuzz
+    // information that was previously exposed in environment variables during
+    // `build_env_expose()`.
+    //
+    // This is called directly after the `cargo build ...` command is executed.
+    fn build_env_unexpose(&self) -> Result<()> {
+        env::remove_var(BUILD_ENV_CARGO_FUZZ);
+        env::remove_var(BUILD_ENV_MANIFEST_DIR);
+        Ok(())
+    }
 
     pub fn exec_build(
         &self,
@@ -341,6 +401,12 @@ impl FuzzProject {
         if let Some(target_dir) = self.target_dir(&build)? {
             cmd.arg("--target-dir").arg(target_dir);
         }
+        
+        // expose build information via environment variables, before executing
+        // the build command
+        self.build_env_expose(mode, build, fuzz_target).expect(
+            "Failed to set cargo-fuzz build environment variables."
+        );
 
         let status = cmd
             .status()
@@ -348,6 +414,11 @@ impl FuzzProject {
         if !status.success() {
             bail!("failed to build fuzz script: {:?}", cmd);
         }
+        
+        // un-expose build information, after the command has finished
+        self.build_env_unexpose().expect(
+            "Failed to un-set cargo-fuzz build environment variables."
+        );
 
         Ok(())
     }
