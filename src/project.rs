@@ -17,7 +17,7 @@ const DEFAULT_FUZZ_DIR: &str = "fuzz";
 
 /// The name of the environment variable that is exposed to indicate a
 /// cargo-fuzz build is occurring.
-const BUILD_ENV_CARGO_FUZZ: &str = "CARGO_FUZZ";
+const BUILD_ENV_FLAG: &str = "CARGO_FUZZ";
 
 /// The name of the environment variable that exposes the cargo fuzz manifest
 /// path during builds.
@@ -358,24 +358,23 @@ impl FuzzProject {
                   _build: &options::BuildOptions,
                   _fuzz_target: Option<&str>
     ) -> Result<()> {
-        // expose a boolean-like environment variable to allow the detection of
-        // cargo-fuzz
-        env::set_var(BUILD_ENV_CARGO_FUZZ, "1");
+        // expose a flag environment variable to allow the detection of cargo-fuzz
+        env::set_var(BUILD_ENV_FLAG, "1");
 
-        // expose the path to the cargo-fuzz manifest:
+        // expose the path to the cargo-fuzz manifest
         let manifest_path = self.manifest_path();
         env::set_var(BUILD_ENV_MANIFEST_DIR, manifest_path.as_os_str());
 
         Ok(())
     }
     
-    // Helper function for `exe_build()` used to un-expose cargo-fuzz
+    // Helper function for `exec_build()` used to un-expose cargo-fuzz
     // information that was previously exposed in environment variables during
     // `build_env_expose()`.
     //
     // This is called directly after the `cargo build ...` command is executed.
     fn build_env_unexpose(&self) -> Result<()> {
-        env::remove_var(BUILD_ENV_CARGO_FUZZ);
+        env::remove_var(BUILD_ENV_FLAG);
         env::remove_var(BUILD_ENV_MANIFEST_DIR);
         Ok(())
     }
