@@ -248,8 +248,8 @@ impl FuzzProject {
 
             // NOTE: On Windows, if the user's fuzzing targets have a dependency
             // on a local Rust DLL (with `crate-type` containing `["cdylib"]),
-            // the MSVC Linker will be unable to resolve the `main` symbol when
-            // linking the DLL. It will fail with this error:
+            // the MSVC Linker may be unable to resolve the `main` symbol when
+            // linking the DLL. It may fail with this error:
             //
             //     LINK : error LNK2001: unresolved external symbol main
             //     C:\....\depedency.dll : fatal error LNK1120: 1 unresolved externals
