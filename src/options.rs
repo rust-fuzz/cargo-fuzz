@@ -165,6 +165,20 @@ pub struct BuildOptions {
     /// and the fuzzer can store an input to the corpus at each condition that it passes;
     /// giving it a better chance of producing an input that reaches `res = 2;`.
     pub disable_branch_folding: Option<bool>,
+
+    #[arg(long)]
+    /// Disable the inclusion of the `/include:main` MSVC linker argument
+    ///
+    /// The purpose of `/include:main` is to force the MSVC linker to include an
+    /// external reference to the symbol `main`, such that fuzzing targets built
+    /// on Windows are able to find LibFuzzer's `main` function.
+    ///
+    /// In certain corner cases, users may prefer to *not* build with this
+    /// argument. One such example: if a user is intending to build and fuzz a
+    /// Windows DLL, they would likely choose to enable this flag, to prevent
+    /// the DLL from having an extern `main` reference added to it. (DLLs/shared
+    /// libraries should not have any reference to `main`.)
+    pub no_include_main_msvc: bool,
 }
 
 impl stdfmt::Display for BuildOptions {

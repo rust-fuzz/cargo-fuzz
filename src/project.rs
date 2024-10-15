@@ -241,28 +241,24 @@ impl FuzzProject {
         if !build.release || build.debug_assertions || build.careful_mode {
             rustflags.push_str(" -Cdebug-assertions");
         }
-        if build.triple.contains("-msvc") {
-            // The entrypoint is in the bundled libfuzzer rlib, this gets the
-            // linker to find it.
+        if build.triple.contains("-msvc") && !build.no_include_main_msvc {
+            // This forces the MSVC linker (which runs on Windows systems) to
+            // find the entry point (i.e. the `main` function) within the
+            // LibFuzzer `.rlib` file produced during the build.
+            //
+            // The `--no-include-main-msvc` argument disables the addition of
+            // this linker argument. In certain situations, a user may not want
+            // this argument included as part of the MSVC invocation.
+            //
+            // For example, if the user is attempting to build and fuzz a
+            // Windows DLL (shared library), adding `/include:main` will force
+            // the DLL to compile with an external reference to `main`.
+            // DLLs/shared libraries are designed to be built as a separate
+            // object file, intentionally left *without* knowledge of the entry
+            // point. So, by forcing a DLL to include `main` will cause linking
+            // to fail. Using `--no-include-main-msvc` will allow the DLL to be
+            // built without issue.
             rustflags.push_str(" -Clink-arg=/include:main");
-
-            // NOTE: On Windows, if the user's fuzzing targets have a dependency
-            // on a local Rust DLL (with `crate-type` containing `["cdylib"]),
-            // the MSVC Linker may be unable to resolve the `main` symbol when
-            // linking the DLL. It may fail with this error:
-            //
-            //     LINK : error LNK2001: unresolved external symbol main
-            //     C:\....\depedency.dll : fatal error LNK1120: 1 unresolved externals
-            //
-            // We cannot remove the above argument from the rustc args *only*
-            // for the cdylib dependencies, so this fix will have to be on the
-            // user's side. To fix this, the user should add the following MSVC
-            // linker argument to their DLL's build script (`build.rs`):
-            //
-            //     println!("cargo:rustc-link-arg=/force:unresolved");
-            //
-            // See here for information on the `/force` MSVC linker argument:
-            // https://learn.microsoft.com/en-us/cpp/build/reference/force-force-file-output
         }
 
         // If release mode is enabled then we force 1 CGU to be used in rustc.
