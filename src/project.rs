@@ -342,17 +342,18 @@ impl FuzzProject {
             Ok(None)
         }
     }
-    
+
     // Helper function for `exec_build()` used to expose cargo-fuzz information
     // via environment variables. Such environment variables can be used by fuzz
     // target dependencies' build scripts to detect whether or not cargo-fuzz is
     // responsible for the build.
     //
     // This is called directly before the `cargo build ...` command is executed.
-    fn build_env_expose(&self,
-                  _mode: options::BuildMode,
-                  _build: &options::BuildOptions,
-                  _fuzz_target: Option<&str>
+    fn build_env_expose(
+        &self,
+        _mode: options::BuildMode,
+        _build: &options::BuildOptions,
+        _fuzz_target: Option<&str>,
     ) -> Result<()> {
         // expose a flag environment variable to allow the detection of cargo-fuzz
         env::set_var(BUILD_ENV_FLAG, "1");
@@ -363,7 +364,7 @@ impl FuzzProject {
 
         Ok(())
     }
-    
+
     // Helper function for `exec_build()` used to un-expose cargo-fuzz
     // information that was previously exposed in environment variables during
     // `build_env_expose()`.
@@ -396,12 +397,11 @@ impl FuzzProject {
         if let Some(target_dir) = self.target_dir(&build)? {
             cmd.arg("--target-dir").arg(target_dir);
         }
-        
+
         // expose build information via environment variables, before executing
         // the build command
-        self.build_env_expose(mode, build, fuzz_target).expect(
-            "Failed to set cargo-fuzz build environment variables."
-        );
+        self.build_env_expose(mode, build, fuzz_target)
+            .expect("Failed to set cargo-fuzz build environment variables.");
 
         let status = cmd
             .status()
@@ -409,11 +409,10 @@ impl FuzzProject {
         if !status.success() {
             bail!("failed to build fuzz script: {:?}", cmd);
         }
-        
+
         // un-expose build information, after the command has finished
-        self.build_env_unexpose().expect(
-            "Failed to un-set cargo-fuzz build environment variables."
-        );
+        self.build_env_unexpose()
+            .expect("Failed to un-set cargo-fuzz build environment variables.");
 
         Ok(())
     }
