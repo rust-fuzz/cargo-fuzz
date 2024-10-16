@@ -242,7 +242,7 @@ impl FuzzProject {
             rustflags.push_str(" -Cdebug-assertions");
         }
         if build.triple.contains("-msvc") {
-            // The entrypoint is in the bundled libfuzzer rlib, this gets the linker to find  it.
+            // The entrypoint is in the bundled libfuzzer rlib, this gets the linker to find it.
             rustflags.push_str(" -Clink-arg=/include:main");
         }
 
