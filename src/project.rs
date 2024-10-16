@@ -247,8 +247,8 @@ impl FuzzProject {
             // the DLL to compile with an external reference to `main`.
             // DLLs/shared libraries are designed to be built as a separate
             // object file, intentionally left *without* knowledge of the entry
-            // point. So, by forcing a DLL to include `main` will cause linking
-            // to fail. Using `--no-include-main-msvc` will allow the DLL to be
+            // point. So, forcing a DLL to include `main` will cause linking to
+            // fail. Using `--no-include-main-msvc` will allow the DLL to be
             // built without issue.
             rustflags.push_str(" -Clink-arg=/include:main");
         }
