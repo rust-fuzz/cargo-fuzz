@@ -15,10 +15,6 @@ use std::{
 
 const DEFAULT_FUZZ_DIR: &str = "fuzz";
 
-/// The name of the environment variable that is exposed to indicate a
-/// cargo-fuzz build is occurring.
-const BUILD_ENV_FLAG: &str = "CARGO_FUZZ";
-
 /// The name of the environment variable that exposes the cargo fuzz manifest
 /// path during builds.
 const BUILD_ENV_MANIFEST_DIR: &str = "CARGO_FUZZ_MANIFEST";
@@ -330,34 +326,24 @@ impl FuzzProject {
 
     // Helper function for `exec_build()` used to expose cargo-fuzz information
     // via environment variables. Such environment variables can be used by fuzz
-    // target dependencies' build scripts to detect whether or not cargo-fuzz is
-    // responsible for the build.
+    // target dependencies' build scripts to adjust its build settings based on
+    // these variables' values.
     //
     // This is called directly before the `cargo build ...` command is executed.
-    fn build_env_expose(
+    // The command is passed in as a mutable reference such that the subprocess'
+    // environment (not *this* process' environment) will have the environment
+    // variables set.
+    fn exec_build_expose_env(
         &self,
+        cmd: &mut Command,
         _mode: options::BuildMode,
         _build: &options::BuildOptions,
         _fuzz_target: Option<&str>,
     ) -> Result<()> {
-        // expose a flag environment variable to allow the detection of cargo-fuzz
-        env::set_var(BUILD_ENV_FLAG, "1");
-
-        // expose the path to the cargo-fuzz manifest
+        // expose the path to the cargo-fuzz manifest to the subprocess
         let manifest_path = self.manifest_path();
-        env::set_var(BUILD_ENV_MANIFEST_DIR, manifest_path.as_os_str());
+        cmd.env(BUILD_ENV_MANIFEST_DIR, manifest_path.as_os_str());
 
-        Ok(())
-    }
-
-    // Helper function for `exec_build()` used to un-expose cargo-fuzz
-    // information that was previously exposed in environment variables during
-    // `build_env_expose()`.
-    //
-    // This is called directly after the `cargo build ...` command is executed.
-    fn build_env_unexpose(&self) -> Result<()> {
-        env::remove_var(BUILD_ENV_FLAG);
-        env::remove_var(BUILD_ENV_MANIFEST_DIR);
         Ok(())
     }
 
@@ -385,7 +371,7 @@ impl FuzzProject {
 
         // expose build information via environment variables, before executing
         // the build command
-        self.build_env_expose(mode, build, fuzz_target)
+        self.exec_build_expose_env(&mut cmd, mode, build, fuzz_target)
             .expect("Failed to set cargo-fuzz build environment variables.");
 
         let status = cmd
@@ -394,10 +380,6 @@ impl FuzzProject {
         if !status.success() {
             bail!("failed to build fuzz script: {:?}", cmd);
         }
-
-        // un-expose build information, after the command has finished
-        self.build_env_unexpose()
-            .expect("Failed to un-set cargo-fuzz build environment variables.");
 
         Ok(())
     }
