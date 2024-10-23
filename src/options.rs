@@ -279,6 +279,7 @@ mod test {
             no_cfg_fuzzing: false,
             no_trace_compares: false,
             disable_branch_folding: None,
+            no_include_main_msvc: false,
         };
 
         let opts = vec![
