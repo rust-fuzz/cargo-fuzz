@@ -233,8 +233,23 @@ impl FuzzProject {
         if !build.release || build.debug_assertions || build.careful_mode {
             rustflags.push_str(" -Cdebug-assertions");
         }
-        if build.triple.contains("-msvc") {
-            // The entrypoint is in the bundled libfuzzer rlib, this gets the linker to find it.
+        if build.triple.contains("-msvc") && !build.no_include_main_msvc {
+            // This forces the MSVC linker (which runs on Windows systems) to
+            // find the entry point (i.e. the `main` function) within the
+            // LibFuzzer `.rlib` file produced during the build.
+            //
+            // The `--no-include-main-msvc` argument disables the addition of
+            // this linker argument. In certain situations, a user may not want
+            // this argument included as part of the MSVC invocation.
+            //
+            // For example, if the user is attempting to build and fuzz a
+            // Windows DLL (shared library), adding `/include:main` will force
+            // the DLL to compile with an external reference to `main`.
+            // DLLs/shared libraries are designed to be built as a separate
+            // object file, intentionally left *without* knowledge of the entry
+            // point. So, forcing a DLL to include `main` will cause linking to
+            // fail. Using `--no-include-main-msvc` will allow the DLL to be
+            // built without issue.
             rustflags.push_str(" -Clink-arg=/include:main");
         }
 
