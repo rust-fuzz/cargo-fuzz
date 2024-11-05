@@ -50,13 +50,16 @@ pub enum BuildMode {
 
 #[derive(Clone, Debug, Eq, PartialEq, Parser)]
 pub struct BuildOptions {
-    #[arg(short = 'D', long, conflicts_with = "release")]
+    #[arg(short = 'D', long, conflicts_with_all = ["release", "profile"])]
     /// Build artifacts in development mode, without optimizations
     pub dev: bool,
 
-    #[arg(short = 'O', long, conflicts_with = "dev")]
+    #[arg(short = 'O', long, conflicts_with_all = ["dev", "profile"])]
     /// Build artifacts in release mode, with optimizations
     pub release: bool,
+
+    #[arg(long, conflicts_with_all = ["dev", "release"])]
+    pub profile: Option<String>,
 
     #[arg(short = 'a', long)]
     /// Build artifacts with debug assertions and overflow checks enabled (default if not -O)
@@ -181,6 +184,20 @@ pub struct BuildOptions {
     pub no_include_main_msvc: bool,
 }
 
+impl BuildOptions {
+    pub fn profile_name(&self) -> &str {
+        // if no explicit profile is given then we default to release
+        // mode unless debug mode is explicitly requested.
+        if let Some(profile) = &self.profile {
+            profile
+        } else if !self.dev {
+            "release"
+        } else {
+            "dev"
+        }
+    }
+}
+
 impl stdfmt::Display for BuildOptions {
     fn fmt(&self, f: &mut stdfmt::Formatter) -> stdfmt::Result {
         if self.dev {
@@ -189,6 +206,10 @@ impl stdfmt::Display for BuildOptions {
 
         if self.release {
             write!(f, " -O")?;
+        }
+
+        if let Some(profile) = &self.profile {
+            write!(f, " --profile {profile}")?;
         }
 
         if self.debug_assertions {
@@ -263,6 +284,7 @@ mod test {
         let default_opts = BuildOptions {
             dev: false,
             release: false,
+            profile: None,
             debug_assertions: false,
             verbose: false,
             no_default_features: false,
@@ -290,6 +312,10 @@ mod test {
             },
             BuildOptions {
                 release: true,
+                ..default_opts.clone()
+            },
+            BuildOptions {
+                profile: Some("fuzz".to_string()),
                 ..default_opts.clone()
             },
             BuildOptions {
