@@ -126,6 +126,10 @@ pub struct BuildOptions {
     #[arg(long)]
     pub no_cfg_fuzzing: bool,
 
+    /// Do not instrument Rust code for fuzzing
+    #[arg(long)]
+    pub no_rust_fuzzing: bool,
+
     #[arg(long)]
     /// Don't build with the `sanitizer-coverage-trace-compares` LLVM argument
     ///
