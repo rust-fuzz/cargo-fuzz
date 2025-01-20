@@ -142,7 +142,13 @@ impl FuzzProject {
             .arg(&build.triple);
         // we default to release mode unless debug mode is explicitly requested
         if !build.dev {
-            cmd.args(["--release", "--config", "profile.release.debug=true"]);
+            cmd.args([
+                "--release",
+                "--config",
+                "profile.release.debug=true",
+                "--config",
+                "profile.release.strip=false",
+            ]);
         }
         if build.verbose {
             cmd.arg("--verbose");
