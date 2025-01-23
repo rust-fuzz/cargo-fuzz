@@ -116,9 +116,10 @@ pub struct BuildOptions {
     /// the coverage option will be disabled).
     pub coverage: bool,
 
-    /// Dead code is linked by default to prevent a potential error with some
-    /// optimized targets. This flag allows you to opt out of it.
-    #[arg(long)]
+    /// Dead code is stripped by default.
+    /// This flag allows you to opt out and always include dead code.
+    /// Please note, this could trigger unexpected behavior or even ICEs in the compiler.
+    #[arg(long, default_value_t = true)]
     pub strip_dead_code: bool,
 
     /// By default the 'cfg(fuzzing)' compilation configuration is set. This flag
@@ -275,7 +276,7 @@ mod test {
             unstable_flags: Vec::new(),
             target_dir: None,
             coverage: false,
-            strip_dead_code: false,
+            strip_dead_code: true,
             no_cfg_fuzzing: false,
             no_trace_compares: false,
             disable_branch_folding: None,
