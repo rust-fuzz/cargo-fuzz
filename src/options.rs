@@ -137,6 +137,20 @@ pub struct BuildOptions {
     pub no_trace_compares: bool,
 
     #[arg(long)]
+    /// Enables `sanitizer-coverage-trace-divs` LLVM instrumentation
+    ///
+    /// When set to `true`, the compiler will instrument integer division instructions
+    /// to capture the right argument of division.
+    pub trace_div: bool,
+
+    #[arg(long)]
+    /// Enables `sanitizer-coverage-trace-geps` LLVM instrumentation
+    ///
+    /// When set to `true`, instruments GetElementPtr (GEP) instructions to track
+    /// pointer arithmetic operations to capture array indices.
+    pub trace_gep: bool,
+
+    #[arg(long, default_value_t = true)]
     /// Disable transformation of if-statements into `cmov` instructions (when this
     /// happens, we get no coverage feedback for that branch). Default setting is true.
     /// This is done by setting the `-simplifycfg-branch-fold-threshold=0` LLVM arg.
@@ -165,7 +179,7 @@ pub struct BuildOptions {
     /// Note, that in the second program, there are now 2 new coverage feedback points,
     /// and the fuzzer can store an input to the corpus at each condition that it passes;
     /// giving it a better chance of producing an input that reaches `res = 2;`.
-    pub disable_branch_folding: Option<bool>,
+    pub disable_branch_folding: bool,
 
     #[arg(long)]
     /// Disable the inclusion of the `/include:main` MSVC linker argument
@@ -279,7 +293,9 @@ mod test {
             strip_dead_code: true,
             no_cfg_fuzzing: false,
             no_trace_compares: false,
-            disable_branch_folding: None,
+            trace_div: false,
+            trace_gep: false,
+            disable_branch_folding: true,
             no_include_main_msvc: false,
         };
 
