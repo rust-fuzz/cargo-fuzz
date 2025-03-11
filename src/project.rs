@@ -182,8 +182,12 @@ impl FuzzProject {
             rustflags.push_str(" -Cllvm-args=-sanitizer-coverage-trace-compares");
         }
 
-        if build.disable_branch_folding.unwrap_or(true) {
-            rustflags.push_str(" -Cllvm-args=-simplifycfg-branch-fold-threshold=0");
+        if build.trace_div {
+            rustflags.push_str(" -Cllvm-args=-sanitizer-coverage-trace-divs");
+        }
+
+        if build.trace_gep {
+            rustflags.push_str(" -Cllvm-args=-sanitizer-coverage-trace-geps");
         }
 
         if !build.no_cfg_fuzzing {
@@ -192,6 +196,10 @@ impl FuzzProject {
 
         if !build.strip_dead_code {
             rustflags.push_str(" -Clink-dead-code");
+        }
+
+        if build.disable_branch_folding {
+            rustflags.push_str(" -Cllvm-args=-simplifycfg-branch-fold-threshold=0");
         }
 
         if build.coverage {
