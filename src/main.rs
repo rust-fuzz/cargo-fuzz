@@ -112,25 +112,28 @@ enum Command {
     #[command(
         help_template(LONG_ABOUT_TEMPLATE),
         before_help(BUILD_BEFORE_HELP),
-        after_help(BUILD_AFTER_HELP)
+        after_help(BUILD_AFTER_HELP),
+        visible_alias("b")
     )]
     /// Build fuzz targets
     Build(options::Build),
 
-    #[command(help_template(LONG_ABOUT_TEMPLATE))]
+    #[command(help_template(LONG_ABOUT_TEMPLATE), visible_alias("c"))]
     /// Type-check the fuzz targets
     Check(options::Check),
 
     /// Print the `std::fmt::Debug` output for an input
     Fmt(options::Fmt),
 
+    #[command(visible_alias("ls"))]
     /// List all the existing fuzz targets
     List(options::List),
 
     #[command(
         help_template(LONG_ABOUT_TEMPLATE),
         before_help(RUN_BEFORE_HELP),
-        after_help(RUN_AFTER_HELP)
+        after_help(RUN_AFTER_HELP),
+        visible_alias("r")
     )]
     /// Run a fuzz target
     Run(options::Run),
@@ -141,6 +144,7 @@ enum Command {
     /// Minify a test case
     Tmin(options::Tmin),
 
+    #[command(visible_alias("cov"))]
     /// Run program on the generated corpus and generate coverage information
     Coverage(options::Coverage),
 }
