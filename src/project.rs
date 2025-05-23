@@ -928,11 +928,10 @@ impl FuzzProject {
     // If `fuzz_dir_opt` is `None`, returns a new instance with the default fuzz project
     // path. Otherwise, returns a new instance with the inner content of `fuzz_dir_opt`.
     fn manage_initial_instance(fuzz_dir_opt: Option<PathBuf>) -> Result<Self> {
-        let project_dir = find_package()?;
         let fuzz_dir = if let Some(el) = fuzz_dir_opt {
             el
         } else {
-            project_dir.join(DEFAULT_FUZZ_DIR)
+            find_package()?.join(DEFAULT_FUZZ_DIR)
         };
         Ok(FuzzProject {
             fuzz_dir,
