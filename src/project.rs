@@ -145,7 +145,7 @@ impl FuzzProject {
             cmd.args([
                 "--release",
                 "--config",
-                "profile.release.debug=true",
+                "profile.release.debug=\"line-tables-only\"",
                 "--config",
                 "profile.release.strip=false",
             ]);
