@@ -50,107 +50,108 @@ pub enum BuildMode {
 
 #[derive(Clone, Debug, Eq, PartialEq, Parser)]
 pub struct BuildOptions {
-    #[arg(short = 'D', long, conflicts_with = "release")]
     /// Build artifacts in development mode, without optimizations
+    #[arg(short = 'D', long, conflicts_with = "release")]
     pub dev: bool,
 
-    #[arg(short = 'O', long, conflicts_with = "dev")]
     /// Build artifacts in release mode, with optimizations
+    #[arg(short = 'O', long, conflicts_with = "dev")]
     pub release: bool,
 
-    #[arg(short = 'a', long)]
     /// Build artifacts with debug assertions and overflow checks enabled (default if not -O)
+    #[arg(short = 'a', long)]
     pub debug_assertions: bool,
 
     /// Build target with verbose output from `cargo build`
     #[arg(short = 'v', long)]
     pub verbose: bool,
 
-    #[arg(long)]
     /// Build artifacts with default Cargo features disabled
+    #[arg(long)]
     pub no_default_features: bool,
 
-    #[arg(long, conflicts_with_all = &["no_default_features", "features"])]
     /// Build artifacts with all Cargo features enabled
+    #[arg(long, conflicts_with_all = &["no_default_features", "features"])]
     pub all_features: bool,
 
-    #[arg(long)]
     /// Build artifacts with given Cargo feature enabled
+    #[arg(long)]
     pub features: Option<String>,
 
-    #[arg(short, long, value_enum, default_value = "address")]
     /// Use a specific sanitizer
+    #[arg(short, long, value_enum, default_value = "address")]
     pub sanitizer: Sanitizer,
 
-    #[arg(long = "build-std")]
     /// Pass -Zbuild-std to Cargo, which will build the standard library with all the build
     /// settings for the fuzz target, including debug assertions, and a sanitizer if requested.
     /// Currently this conflicts with coverage instrumentation but -Zbuild-std enables detecting
     /// more bugs so this option defaults to true, but when using `cargo fuzz coverage` it
     /// defaults to false.
+    #[arg(long = "build-std")]
     pub build_std: bool,
 
-    #[arg(short, long = "careful")]
     /// enable "careful" mode: inspired by https://github.com/RalfJung/cargo-careful, this enables
     /// building the fuzzing harness along with the standard library (implies --build-std) with
     /// debug assertions and extra const UB and init checks.
+    #[arg(short, long = "careful")]
     pub careful_mode: bool,
 
-    #[arg(long = "target", default_value(crate::utils::default_target()))]
     /// Target triple of the fuzz target
+    #[arg(long = "target", default_value(crate::utils::default_target()))]
     pub triple: String,
 
-    #[arg(short = 'Z', value_name = "FLAG")]
     /// Unstable (nightly-only) flags to Cargo
+    #[arg(short = 'Z', value_name = "FLAG")]
     pub unstable_flags: Vec<String>,
 
-    #[arg(long)]
     /// Target dir option to pass to cargo build.
+    #[arg(long)]
     pub target_dir: Option<String>,
 
-    #[arg(skip = false)]
     /// Instrument program code with source-based code coverage information.
     /// This build option will be automatically used when running `cargo fuzz coverage`.
     /// The option will not be shown to the user, which is ensured by the `skip` attribute.
     /// The attribute takes a default value `false`, ensuring that by default,
     /// the coverage option will be disabled).
+    #[arg(skip = false)]
     pub coverage: bool,
 
     /// Dead code is stripped by default.
     /// This flag allows you to opt out and always include dead code.
     /// Please note, this could trigger unexpected behavior or even ICEs in the compiler.
-    #[arg(long, default_value_t = true)]
-    pub strip_dead_code: bool,
+    //
+    // `Option<Option<bool>>` gives an optional argument with an optional value.
+    #[arg(long)]
+    pub strip_dead_code: Option<Option<bool>>,
 
     /// By default the 'cfg(fuzzing)' compilation configuration is set. This flag
     /// allows you to opt out of it.
     #[arg(long)]
     pub no_cfg_fuzzing: bool,
 
-    #[arg(long)]
     /// Don't build with the `sanitizer-coverage-trace-compares` LLVM argument
     ///
     ///  Using this may improve fuzzer throughput at the cost of worse coverage accuracy.
     /// It also allows older CPUs lacking the `popcnt` instruction to use `cargo-fuzz`;
     /// the `*-trace-compares` instrumentation assumes that the instruction is
     /// available.
+    #[arg(long)]
     pub no_trace_compares: bool,
 
-    #[arg(long)]
     /// Enables `sanitizer-coverage-trace-divs` LLVM instrumentation
     ///
     /// When set to `true`, the compiler will instrument integer division instructions
     /// to capture the right argument of division.
+    #[arg(long)]
     pub trace_div: bool,
 
-    #[arg(long)]
     /// Enables `sanitizer-coverage-trace-geps` LLVM instrumentation
     ///
     /// When set to `true`, instruments GetElementPtr (GEP) instructions to track
     /// pointer arithmetic operations to capture array indices.
+    #[arg(long)]
     pub trace_gep: bool,
 
-    #[arg(long, default_value_t = true)]
     /// Disable transformation of if-statements into `cmov` instructions (when this
     /// happens, we get no coverage feedback for that branch). Default setting is true.
     /// This is done by setting the `-simplifycfg-branch-fold-threshold=0` LLVM arg.
@@ -179,9 +180,11 @@ pub struct BuildOptions {
     /// Note, that in the second program, there are now 2 new coverage feedback points,
     /// and the fuzzer can store an input to the corpus at each condition that it passes;
     /// giving it a better chance of producing an input that reaches `res = 2;`.
-    pub disable_branch_folding: bool,
-
+    //
+    // `Option<Option<bool>>` gives an optional argument with an optional value.
     #[arg(long)]
+    pub disable_branch_folding: Option<Option<bool>>,
+
     /// Disable the inclusion of the `/include:main` MSVC linker argument
     ///
     /// The purpose of `/include:main` is to force the MSVC linker to include an
@@ -193,6 +196,7 @@ pub struct BuildOptions {
     /// Windows DLL, they would likely choose to enable this flag, to prevent
     /// the DLL from having an extern `main` reference added to it. (DLLs/shared
     /// libraries should not have any reference to `main`.)
+    #[arg(long)]
     pub no_include_main_msvc: bool,
 }
 
@@ -290,12 +294,12 @@ mod test {
             unstable_flags: Vec::new(),
             target_dir: None,
             coverage: false,
-            strip_dead_code: true,
+            strip_dead_code: None,
             no_cfg_fuzzing: false,
             no_trace_compares: false,
             trace_div: false,
             trace_gep: false,
-            disable_branch_folding: true,
+            disable_branch_folding: None,
             no_include_main_msvc: false,
         };
 
