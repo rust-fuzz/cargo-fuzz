@@ -152,7 +152,7 @@ pub struct BuildOptions {
     /// pointer arithmetic operations to capture array indices.
     pub trace_gep: bool,
 
-    #[arg(long, default_value_t = true)]
+    #[arg(long)]
     /// Disable transformation of if-statements into `cmov` instructions (when this
     /// happens, we get no coverage feedback for that branch). Default setting is true.
     /// This is done by setting the `-simplifycfg-branch-fold-threshold=0` LLVM arg.
@@ -181,7 +181,9 @@ pub struct BuildOptions {
     /// Note, that in the second program, there are now 2 new coverage feedback points,
     /// and the fuzzer can store an input to the corpus at each condition that it passes;
     /// giving it a better chance of producing an input that reaches `res = 2;`.
-    pub disable_branch_folding: bool,
+    //
+    // `Option<Option<bool>>` gives an optional argument with an optional value.
+    pub disable_branch_folding: Option<Option<bool>>,
 
     #[arg(long)]
     /// Disable the inclusion of the `/include:main` MSVC linker argument
@@ -297,7 +299,7 @@ mod test {
             no_trace_compares: false,
             trace_div: false,
             trace_gep: false,
-            disable_branch_folding: true,
+            disable_branch_folding: None,
             no_include_main_msvc: false,
         };
 
