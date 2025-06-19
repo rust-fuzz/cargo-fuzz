@@ -194,8 +194,13 @@ impl FuzzProject {
             rustflags.push_str(" --cfg fuzzing");
         }
 
-        if !build.strip_dead_code {
-            rustflags.push_str(" -Clink-dead-code");
+        match build.strip_dead_code {
+            // No flag, --strip-dead-code, or --strip-dead-code=true: do nothing, because rustc
+            // strips dead code by default.
+            None | Some(None) | Some(Some(true)) => {}
+
+            // --strip-dead-code=false: explicitly include dead code.
+            Some(Some(false)) => rustflags.push_str(" -Clink-dead-code"),
         }
 
         if build.disable_branch_folding {

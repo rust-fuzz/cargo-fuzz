@@ -119,8 +119,10 @@ pub struct BuildOptions {
     /// Dead code is stripped by default.
     /// This flag allows you to opt out and always include dead code.
     /// Please note, this could trigger unexpected behavior or even ICEs in the compiler.
-    #[arg(long, default_value_t = true)]
-    pub strip_dead_code: bool,
+    //
+    // `Option<Option<bool>>` gives an optional argument with an optional value.
+    #[arg(long)]
+    pub strip_dead_code: Option<Option<bool>>,
 
     /// By default the 'cfg(fuzzing)' compilation configuration is set. This flag
     /// allows you to opt out of it.
@@ -290,7 +292,7 @@ mod test {
             unstable_flags: Vec::new(),
             target_dir: None,
             coverage: false,
-            strip_dead_code: true,
+            strip_dead_code: None,
             no_cfg_fuzzing: false,
             no_trace_compares: false,
             trace_div: false,
