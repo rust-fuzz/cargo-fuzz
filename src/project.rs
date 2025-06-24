@@ -142,11 +142,7 @@ impl FuzzProject {
             .arg(&build.triple);
         // we default to release mode unless debug mode is explicitly requested
         if !build.dev {
-            cmd.args([
-                "--release",
-                "--config",
-                "profile.release.debug=\"line-tables-only\"",
-            ]);
+            cmd.args(["--release"]);
         }
         if build.verbose {
             cmd.arg("--verbose");
@@ -170,11 +166,11 @@ impl FuzzProject {
             cmd.arg("-Z").arg("build-std");
         }
 
-        let mut rustflags: String = "-Cpasses=sancov-module \
-                                     -Cllvm-args=-sanitizer-coverage-level=4 \
-                                     -Cllvm-args=-sanitizer-coverage-inline-8bit-counters \
-                                     -Cllvm-args=-sanitizer-coverage-pc-table"
-            .to_owned();
+        let mut rustflags = String::new();
+        rustflags.push_str(" -Cpasses=sancov-module");
+        rustflags.push_str(" -Cllvm-args=-sanitizer-coverage-level=4");
+        rustflags.push_str(" -Cllvm-args=-sanitizer-coverage-inline-8bit-counters");
+        rustflags.push_str(" -Cllvm-args=-sanitizer-coverage-pc-table");
 
         if !build.no_trace_compares {
             rustflags.push_str(" -Cllvm-args=-sanitizer-coverage-trace-compares");
@@ -275,18 +271,24 @@ impl FuzzProject {
             rustflags.push_str(" -Clink-arg=/include:main");
         }
 
-        // If release mode is enabled then we force 1 CGU to be used in rustc.
-        // This will result in slower compilations but it looks like the sancov
-        // passes otherwise add `notEligibleToImport` annotations to functions
-        // in LLVM IR, meaning that *nothing* can get imported with ThinLTO.
-        // This means that in release mode, where ThinLTO is critical for
-        // performance, we're taking a huge hit relative to actual release mode.
-        // Local tests have once showed this to be a ~3x faster runtime where
-        // otherwise functions like `Vec::as_ptr` aren't inlined.
         if !build.dev {
-            rustflags.push_str(" -C codegen-units=1");
+            // If release mode is enabled then we force 1 CGU to be used in rustc.
+            // This will result in slower compilations but it looks like the sancov
+            // passes otherwise add `notEligibleToImport` annotations to functions
+            // in LLVM IR, meaning that *nothing* can get imported with ThinLTO.
+            // This means that in release mode, where ThinLTO is critical for
+            // performance, we're taking a huge hit relative to actual release mode.
+            // Local tests have once showed this to be a ~3x faster runtime where
+            // otherwise functions like `Vec::as_ptr` aren't inlined.
+            rustflags.push_str(" -Ccodegen-units=1");
+
+            // Line numbers are enough and full debuginfo is slow.
+            rustflags.push_str(" -Cdebuginfo=line-tables-only");
         }
 
+        // If the user specified RUSTFLAGS, append that to the RUSTFLAGS
+        // entries we are generating ourselves. That way the user's will
+        // override ours.
         if let Ok(other_flags) = env::var("RUSTFLAGS") {
             rustflags.push(' ');
             rustflags.push_str(&other_flags);
