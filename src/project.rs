@@ -146,8 +146,6 @@ impl FuzzProject {
                 "--release",
                 "--config",
                 "profile.release.debug=\"line-tables-only\"",
-                "--config",
-                "profile.release.strip=false",
             ]);
         }
         if build.verbose {
