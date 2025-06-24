@@ -901,18 +901,27 @@ fn build_stripping_dead_code() {
         .assert()
         .success();
 
-    project
-        .cargo_fuzz()
-        .arg("build")
-        .arg("--strip-dead-code")
-        .arg("--dev")
-        .assert()
-        .success();
-
     let build_dir = project.fuzz_build_dir().join("debug");
 
     let a_bin = build_dir.join("build_strip_a");
-    assert!(a_bin.is_file(), "Not a file: {}", a_bin.display());
+
+    for flag in [
+        "--strip-dead-code",
+        "--strip-dead-code=true",
+        "--strip-dead-code=false",
+    ] {
+        project
+            .cargo_fuzz()
+            .arg("build")
+            .arg(flag)
+            .arg("--dev")
+            .assert()
+            .success();
+
+        assert!(a_bin.is_file(), "Not a file: {}", a_bin.display());
+
+        fs::remove_file(&a_bin).unwrap();
+    }
 }
 
 #[test]
@@ -923,7 +932,7 @@ fn build_with_all_llvm_features() {
     project
         .cargo_fuzz()
         .arg("add")
-        .arg("build_strip_a")
+        .arg("build_all_feats_a")
         .assert()
         .success();
 
@@ -940,7 +949,7 @@ fn build_with_all_llvm_features() {
 
     let build_dir = project.fuzz_build_dir().join("debug");
 
-    let a_bin = build_dir.join("build_strip_a");
+    let a_bin = build_dir.join("build_all_feats_a");
     assert!(a_bin.is_file(), "Not a file: {}", a_bin.display());
 }
 
