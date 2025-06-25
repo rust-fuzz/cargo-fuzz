@@ -116,6 +116,12 @@ pub struct BuildOptions {
     #[arg(skip = false)]
     pub coverage: bool,
 
+    /// Number of codegen units to use. Default is 1 in non-dev builds. 16 may
+    /// be a good choice if you want faster fuzz builds at the cost of somewhat
+    /// slower fuzz runs.
+    #[arg(long)]
+    pub codegen_units: Option<usize>,
+
     /// Dead code is stripped by default.
     /// This flag allows you to opt out and always include dead code.
     /// Please note, this could trigger unexpected behavior or even ICEs in the compiler.
@@ -294,6 +300,7 @@ mod test {
             unstable_flags: Vec::new(),
             target_dir: None,
             coverage: false,
+            codegen_units: None,
             strip_dead_code: None,
             no_cfg_fuzzing: false,
             no_trace_compares: false,
