@@ -944,6 +944,7 @@ fn build_with_all_llvm_features() {
         .arg("--trace-div")
         .arg("--trace-gep")
         .arg("--disable-branch-folding")
+        .arg("--codegen-units=10")
         .assert()
         .success();
 
