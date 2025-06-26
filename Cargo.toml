@@ -3,7 +3,7 @@ members = ["."]
 
 [package]
 name = "cargo-fuzz"
-version = "0.12.0"
+version = "0.13.0"
 authors = ["The rust-fuzz Project Developers"]
 license = "MIT OR Apache-2.0"
 description = "A `cargo` subcommand for fuzzing with `libFuzzer`! Easy to use!"

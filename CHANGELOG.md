@@ -28,6 +28,33 @@ Released YYYY-MM-DD.
 
 --------------------------------------------------------------------------------
 
+## 0.13.0
+
+Released 2025-06-25.
+
+### Added
+
+* Added `--disable-branch-folding` CLI flag to toggle whether LLVM will fold
+  branches or not. This can have an affect on coverage.
+* Added `--strip-dead-code` CLI flag to toggle whether dead code is stripped
+  from builds or not. This can have an affect on coverage.
+* Added `--codegen-units` CLI flag. The default is 1, which gives best fuzzing
+  throughput. You can, however, provide a larger value to significantly reduce
+  compile times at the cost of worsening fuzzing throughput.
+* Added basic support for fuzzing on windows via the `--no-include-main-msvc`
+  flag.
+* Added single-letter aliases for subcommands, e.g. `cargo fuzz b` for `cargo
+  fuzz build`.
+
+### Changed
+
+* No longer strips debug info in dev builds.
+* Only generate line table debug info in default builds. This preserves
+  symbolicated backtraces and builds much faster than when generating full debug
+  info.
+
+--------------------------------------------------------------------------------
+
 ## 0.12.0
 
 Released 2024-02-20.
