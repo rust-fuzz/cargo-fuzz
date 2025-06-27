@@ -28,6 +28,20 @@ Released YYYY-MM-DD.
 
 --------------------------------------------------------------------------------
 
+## 0.13.1
+
+Released 2025-06-26.
+
+### Fixed
+
+* Fixed a bug in debug info configuration where we accidentally used a `rustc`
+  flag that affected not only the debug info level, but also whether split debug
+  info was enabled and whether debug info stripping was enabled. Now we
+  correctly configure precisely and only the debug info level and not any other
+  debug info related settings.
+
+--------------------------------------------------------------------------------
+
 ## 0.13.0
 
 Released 2025-06-25.
