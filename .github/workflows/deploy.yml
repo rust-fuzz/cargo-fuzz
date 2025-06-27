@@ -41,7 +41,7 @@ jobs:
         echo "name=$ARCHIVE_NAME.zip" >> $GITHUB_OUTPUT
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: ${{ steps.package.outputs.name }}
         path: ${{ steps.package.outputs.file }}
@@ -97,7 +97,7 @@ jobs:
         echo "file=$TAR_FILE.tar.gz" >> $GITHUB_OUTPUT
 
     - name: Upload artifacts
-      uses: actions/upload-artifact@v2
+      uses: actions/upload-artifact@v4
       with:
         name: ${{ steps.package.outputs.name }}
         path: ${{ steps.package.outputs.file }}
