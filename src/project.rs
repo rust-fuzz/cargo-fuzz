@@ -142,7 +142,13 @@ impl FuzzProject {
             .arg(&build.triple);
         // we default to release mode unless debug mode is explicitly requested
         if !build.dev {
-            cmd.args(["--release"]);
+            // Note: setting `debug` doesn't only affect `-Cdebuginfo`. It also
+            // affects how cargo uses `-Cstrip` and `-Csplit-debuginfo`.
+            cmd.args([
+                "--release",
+                "--config",
+                "profile.release.debug=\"line-tables-only\"",
+            ]);
         }
         if build.verbose {
             cmd.arg("--verbose");
@@ -288,9 +294,6 @@ impl FuzzProject {
             if build.codegen_units.is_none() {
                 rustflags.push_str(" -Ccodegen-units=1");
             }
-
-            // Line numbers are enough and full debuginfo is slow.
-            rustflags.push_str(" -Cdebuginfo=line-tables-only");
         }
 
         // If the user specified RUSTFLAGS, append that to the RUSTFLAGS

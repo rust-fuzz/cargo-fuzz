@@ -1039,3 +1039,41 @@ fn project_with_fuzz_dir(
     let pb = project_with_params(project_name, next_root, fuzz_dir_pb);
     (fuzz_dir_sting, pb)
 }
+
+#[test]
+fn options_passed_to_rustc() {
+    let project = project("test_options").with_fuzz().build();
+
+    // Create some targets.
+    project
+        .cargo_fuzz()
+        .arg("add")
+        .arg("test_options_a")
+        .assert()
+        .success();
+
+    let build_dir = project.fuzz_build_dir().join("release");
+
+    let a_bin = build_dir.join("test_options_a");
+
+    project
+        .cargo_fuzz()
+        .arg("build")
+        .arg("--verbose")
+        .assert()
+        .stderr(
+            // rustc flags we expect to see and not see. Omit the leading `-C`
+            // because sometimes it has a space after it and sometimes not.
+            predicates::str::contains("opt-level=3")
+                .and(predicates::str::contains("codegen-units=1"))
+                // trailing " " is deliberate, so that e.g. "debug-assertions=false" wouldn't match
+                .and(predicates::str::contains("debug-assertions "))
+                .and(predicates::str::contains("debuginfo=line-tables-only"))
+                .and(predicates::str::contains("strip=debuginfo").not()),
+        )
+        .success();
+
+    assert!(a_bin.is_file(), "Not a file: {}", a_bin.display());
+
+    fs::remove_file(&a_bin).unwrap();
+}
