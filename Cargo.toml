@@ -14,7 +14,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.66"
-current_platform = "0.2.0"
+cargo-config2 = "0.1.19"
 clap = { version = "4.0.29", features = ["derive", "deprecated"] }
 tempfile = "3.3.0"
 toml = "0.5.9"
