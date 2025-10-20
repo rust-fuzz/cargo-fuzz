@@ -12,6 +12,10 @@ pub struct Init {
     /// Whether to create a separate workspace for fuzz targets crate
     pub fuzzing_workspace: Option<bool>,
 
+    #[arg(long, value_parser = clap::builder::BoolishValueParser::new(), default_value = "false")]
+    /// Whether to use libafl's libfuzzer_sys-compatible API for improved fuzzing performance
+    pub use_libafl: Option<bool>,
+
     #[command(flatten)]
     pub fuzz_dir_wrapper: FuzzDirWrapper,
 }
