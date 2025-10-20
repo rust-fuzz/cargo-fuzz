@@ -70,7 +70,7 @@ impl FuzzProject {
             .write_fmt(toml_template!(
                 manifest.crate_name,
                 manifest.edition,
-                init.use_libafl,
+                init.fuzz_engine,
                 init.fuzzing_workspace
             ))
             .with_context(|| format!("failed to write to {}", cargo_toml.display()))?;

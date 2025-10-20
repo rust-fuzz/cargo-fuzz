@@ -159,7 +159,21 @@ fn init_defines_correct_dependency() {
     let expected_dependency_attrs =
         &format!("[dependencies.{name}]\npath = \"..\"", name = project_name);
     assert!(cargo_toml.contains(expected_dependency_attrs));
-    assert!(cargo_toml.contains(r#"libfuzzer-sys = "0.4""#))
+    assert!(cargo_toml.contains(r#"libfuzzer-sys = "0.4""#));
+}
+
+#[test]
+fn init_with_libfuzzer() {
+    let project = project("init_with_libfuzzer").build();
+    project
+        .cargo_fuzz()
+        .arg("init")
+        .arg("--fuzz-engine=libfuzzer")
+        .assert()
+        .success();
+
+    let cargo_toml = fs::read_to_string(project.fuzz_cargo_toml()).unwrap();
+    assert!(cargo_toml.contains(r#"libfuzzer-sys = "0.4""#));
 }
 
 #[test]
@@ -168,7 +182,7 @@ fn init_with_libafl() {
     project
         .cargo_fuzz()
         .arg("init")
-        .arg("--use-libafl=true")
+        .arg("--fuzz-engine=libafl")
         .assert()
         .success();
 
