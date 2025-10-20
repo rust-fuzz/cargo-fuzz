@@ -353,7 +353,7 @@ impl FuzzProject {
         // Use the user-provided target directory, if provided. Otherwise if building for coverage,
         // use the coverage directory
         if let Some(target_dir) = build.target_dir.as_ref() {
-            return Ok(Some(PathBuf::from(target_dir)));
+            Ok(Some(PathBuf::from(target_dir)))
         } else if build.coverage {
             // To ensure that fuzzing and coverage-output generation can run in parallel, we
             // produce a separate binary for the coverage command.
@@ -387,7 +387,7 @@ impl FuzzProject {
             cmd.arg("--bins");
         }
 
-        if let Some(target_dir) = self.target_dir(&build)? {
+        if let Some(target_dir) = self.target_dir(build)? {
             cmd.arg("--target-dir").arg(target_dir);
         }
 
@@ -756,7 +756,7 @@ impl FuzzProject {
         for corpus in corpora.iter() {
             // _tmp_dir is deleted when it goes of of scope.
             let (mut cmd, _tmp_dir) =
-                self.create_coverage_cmd(coverage, &coverage_out_raw_dir, &corpus.as_path())?;
+                self.create_coverage_cmd(coverage, &coverage_out_raw_dir, corpus.as_path())?;
             eprintln!("Generating coverage data for corpus {:?}", corpus);
             let status = cmd
                 .status()

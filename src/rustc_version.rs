@@ -22,7 +22,7 @@ fn rust_version_string() -> anyhow::Result<String> {
     String::from_utf8(raw_output).context("`rustc --version` returned non-text output somehow")
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, PartialOrd)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct RustVersion {
     pub major: u32,
     pub minor: u32,
@@ -36,6 +36,12 @@ impl Ord for RustVersion {
             Ordering::Equal => self.minor.cmp(&other.minor),
             other => other,
         }
+    }
+}
+
+impl PartialOrd for RustVersion {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
