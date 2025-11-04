@@ -14,8 +14,9 @@ pub use self::{
     list::List, run::Run, tmin::Tmin,
 };
 
+use anyhow::{bail, Error, Result};
 use clap::{Parser, ValueEnum};
-use std::{fmt as stdfmt, path::PathBuf};
+use std::{fmt as stdfmt, path::PathBuf, str::FromStr};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, ValueEnum)]
 pub enum Sanitizer {
@@ -276,6 +277,24 @@ impl stdfmt::Display for FuzzDirWrapper {
         }
 
         Ok(())
+    }
+}
+
+#[derive(Clone, Debug)]
+pub enum FuzzEngine {
+    LibFuzzer,
+    LibAfl,
+}
+
+impl FromStr for FuzzEngine {
+    type Err = Error;
+
+    fn from_str(s: &str) -> Result<Self> {
+        match s {
+            "libfuzzer" => Ok(Self::LibFuzzer),
+            "libafl" => Ok(Self::LibAfl),
+            _ => bail!("invalid fuzz engine: '{s}'. Must be one of: 'libfuzzer', 'libafl'"),
+        }
     }
 }
 

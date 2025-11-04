@@ -1,5 +1,5 @@
 macro_rules! toml_template {
-    ($name:expr, $edition:expr, $use_libafl:expr, $fuzzing_workspace:expr) => {
+    ($name:expr, $edition:expr, $fuzz_engine:expr, $fuzzing_workspace:expr) => {
         format_args!(
             r##"[package]
 name = "{name}-fuzz"
@@ -21,10 +21,11 @@ path = ".."
             } else {
                 String::new()
             },
-            libfuzzer_sys_dep = if let Some(true) = $use_libafl {
-                r##"libfuzzer-sys = { version = "0.15.3", package = "libafl_libfuzzer" }"##
-            } else {
-                r##"libfuzzer-sys = "0.4""##
+            libfuzzer_sys_dep = match $fuzz_engine {
+                crate::options::FuzzEngine::LibFuzzer => r#"libfuzzer-sys = "0.4""#,
+                crate::options::FuzzEngine::LibAfl => {
+                    r#"libfuzzer-sys = { version = "0.15.3", package = "libafl_libfuzzer" }"#
+                }
             },
             workspace = if let Some(true) = $fuzzing_workspace {
                 r##"

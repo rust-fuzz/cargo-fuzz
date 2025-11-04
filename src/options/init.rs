@@ -1,4 +1,8 @@
-use crate::{options::FuzzDirWrapper, project::FuzzProject, RunCommand};
+use crate::{
+    options::{FuzzDirWrapper, FuzzEngine},
+    project::FuzzProject,
+    RunCommand,
+};
 use anyhow::Result;
 use clap::Parser;
 
@@ -12,9 +16,11 @@ pub struct Init {
     /// Whether to create a separate workspace for fuzz targets crate
     pub fuzzing_workspace: Option<bool>,
 
-    #[arg(long, value_parser = clap::builder::BoolishValueParser::new(), default_value = "false")]
-    /// Whether to use libafl's libfuzzer_sys-compatible API for improved fuzzing performance
-    pub use_libafl: Option<bool>,
+    #[arg(long, default_value = "libfuzzer")]
+    /// The fuzz engine that the project should use.
+    ///
+    /// Options: libfuzzer, libafl
+    pub fuzz_engine: FuzzEngine,
 
     #[command(flatten)]
     pub fuzz_dir_wrapper: FuzzDirWrapper,
