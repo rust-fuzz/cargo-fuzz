@@ -1,8 +1,4 @@
-use crate::{
-    options::{BuildOptions, FuzzDirWrapper},
-    project::FuzzProject,
-    RunCommand,
-};
+use crate::{options::BuildOptions, project::FuzzProject, RunCommand};
 use anyhow::Result;
 use clap::Parser;
 use std::path::PathBuf;
@@ -11,9 +7,6 @@ use std::path::PathBuf;
 pub struct Fmt {
     #[command(flatten)]
     pub build: BuildOptions,
-
-    #[command(flatten)]
-    pub fuzz_dir_wrapper: FuzzDirWrapper,
 
     /// Name of fuzz target
     pub target: String,
@@ -24,7 +17,7 @@ pub struct Fmt {
 
 impl RunCommand for Fmt {
     fn run_command(&mut self) -> Result<()> {
-        let project = FuzzProject::new(self.fuzz_dir_wrapper.fuzz_dir.to_owned())?;
+        let project = FuzzProject::new(self.build.fuzz_dir_wrapper.get_manifest_path())?;
         project.debug_fmt_input(self)
     }
 }
