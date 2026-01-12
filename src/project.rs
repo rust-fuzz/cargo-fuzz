@@ -3,10 +3,12 @@ use crate::rustc_version::RustVersion;
 use crate::utils::default_target;
 use anyhow::{anyhow, bail, Context, Result};
 use cargo_metadata::MetadataCommand;
+use rayon::prelude::*;
 use std::collections::HashSet;
 use std::io::Read;
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::{
     env, ffi, fs,
     process::{Command, Stdio},
@@ -754,23 +756,101 @@ impl FuzzProject {
 
         let (coverage_out_raw_dir, coverage_out_file) = self.coverage_for(&coverage.target)?;
 
-        for corpus in corpora.iter() {
-            // _tmp_dir is deleted when it goes of of scope.
-            let (mut cmd, _tmp_dir) =
-                self.create_coverage_cmd(coverage, &coverage_out_raw_dir, corpus.as_path())?;
-            eprintln!("Generating coverage data for corpus {:?}", corpus);
-            let status = cmd
-                .status()
-                .with_context(|| format!("Failed to run command: {:?}", cmd))?;
-            if !status.success() {
-                Err(anyhow!(
-                    "Command exited with failure status {}: {:?}",
-                    status,
-                    cmd
-                ))
-                .context("Failed to generage coverage data")?;
-            }
+        let all_input_files: Vec<PathBuf> = corpora
+            .iter()
+            .flat_map(|corpus_dir| {
+                fs::read_dir(corpus_dir)
+                    .ok()
+                    .into_iter()
+                    .flatten()
+                    .filter_map(|entry| entry.ok())
+                    .filter(|entry| entry.file_type().map(|ft| ft.is_file()).unwrap_or(false))
+                    .map(|entry| entry.path())
+            })
+            .collect();
+
+        if all_input_files.is_empty() {
+            bail!("No input files found in corpus directories");
         }
+
+        const MIN_BATCH_SIZE: usize = 100;
+        let num_files = all_input_files.len();
+        let requested_workers = coverage.jobs as usize;
+
+        let effective_workers = if num_files < MIN_BATCH_SIZE {
+            1
+        } else {
+            (num_files / MIN_BATCH_SIZE).min(requested_workers).max(1)
+        };
+
+        let batch_size = num_files.div_ceil(effective_workers);
+
+        eprintln!(
+            "Processing {} input files using {} workers (batch size: {})",
+            num_files, effective_workers, batch_size
+        );
+
+        let pool = rayon::ThreadPoolBuilder::new()
+            .num_threads(effective_workers)
+            .build()
+            .context("Failed to create thread pool")?;
+
+        let has_error = AtomicBool::new(false);
+        let batch_counter = AtomicUsize::new(0);
+
+        let result = pool.install(|| {
+            all_input_files
+                .par_chunks(batch_size)
+                .try_for_each(|file_batch| -> Result<()> {
+                    if has_error.load(Ordering::Relaxed) {
+                        return Ok(());
+                    }
+
+                    let batch_id = batch_counter.fetch_add(1, Ordering::Relaxed);
+                    let temp_corpus = tempfile::tempdir()?;
+                    let temp_corpus_path = temp_corpus.path();
+
+                    for file in file_batch {
+                        if let Some(file_name) = file.file_name() {
+                            let dest = temp_corpus_path.join(file_name);
+                            fs::hard_link(file, &dest).with_context(|| {
+                                format!("Failed to hard link {} to temp directory", file.display())
+                            })?;
+                        }
+                    }
+
+                    let (mut cmd, _tmp_dir) = self.create_coverage_cmd_with_id(
+                        coverage,
+                        &coverage_out_raw_dir,
+                        temp_corpus_path,
+                        batch_id,
+                    )?;
+
+                    eprintln!(
+                        "Worker {}: Generating coverage for {} files",
+                        batch_id,
+                        file_batch.len()
+                    );
+
+                    let status = cmd
+                        .status()
+                        .with_context(|| format!("Failed to run command: {:?}", cmd))?;
+
+                    if !status.success() {
+                        has_error.store(true, Ordering::Relaxed);
+                        return Err(anyhow!(
+                            "Command exited with failure status {}: {:?}",
+                            status,
+                            cmd
+                        ))
+                        .context("Failed to generate coverage data");
+                    }
+
+                    Ok(())
+                })
+        });
+
+        result?;
 
         let mut profdata_bin_path = coverage.llvm_path.clone().unwrap_or(rustlib()?);
         profdata_bin_path.push(format!("llvm-profdata{}", env::consts::EXE_SUFFIX));
@@ -783,11 +863,23 @@ impl FuzzProject {
         Ok(())
     }
 
+    fn create_coverage_cmd_with_id(
+        &self,
+        coverage: &options::Coverage,
+        coverage_dir: &Path,
+        corpus_dir: &Path,
+        batch_id: usize,
+    ) -> Result<(Command, tempfile::TempDir)> {
+        let profraw_name = format!("batch-{}", batch_id);
+        self.create_coverage_cmd(coverage, coverage_dir, corpus_dir, &profraw_name)
+    }
+
     fn create_coverage_cmd(
         &self,
         coverage: &options::Coverage,
         coverage_dir: &Path,
         corpus_dir: &Path,
+        profraw_suffix: &str,
     ) -> Result<(Command, tempfile::TempDir)> {
         let bin_path = {
             let profile_subdir = if coverage.build.dev {
@@ -807,14 +899,9 @@ impl FuzzProject {
 
         let mut cmd = Command::new(bin_path);
 
-        // Raw coverage data will be saved in `coverage/<target>` directory.
-        let corpus_dir_name = corpus_dir
-            .file_name()
-            .and_then(|x| x.to_str())
-            .with_context(|| format!("Invalid corpus directory: {:?}", corpus_dir))?;
         cmd.env(
             "LLVM_PROFILE_FILE",
-            coverage_dir.join(format!("default-{}.profraw", corpus_dir_name)),
+            coverage_dir.join(format!("default-{}.profraw", profraw_suffix)),
         );
         cmd.arg("-merge=1");
         let dummy_corpus = tempfile::tempdir()?;

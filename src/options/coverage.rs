@@ -26,6 +26,15 @@ pub struct Coverage {
     /// Custom corpus directories or artifact files
     pub corpus: Vec<String>,
 
+    #[arg(
+        short,
+        long,
+        default_value_t = num_cpus::get().max(1) as u16,
+        value_parser = clap::value_parser!(u16).range(1..)
+    )]
+    /// Number of concurrent jobs to run
+    pub jobs: u16,
+
     #[arg(last(true))]
     /// Additional libFuzzer arguments passed through to the binary
     pub args: Vec<String>,
