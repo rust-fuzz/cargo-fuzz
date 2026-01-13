@@ -20,6 +20,8 @@ tempfile = "3.3.0"
 toml = "0.5.9"
 rustc_version = "0.4.0"
 cargo_metadata = "0.18.1"
+rayon = "1.11"
+num_cpus = "1.17"
 
 [dev-dependencies]
 assert_cmd = "2.0.7"
