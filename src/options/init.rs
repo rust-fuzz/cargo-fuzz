@@ -1,5 +1,5 @@
 use crate::{
-    options::{FuzzDirWrapper, FuzzEngine},
+    options::{FuzzDirWrapper, FuzzEngine, ManifestPath},
     project::FuzzProject,
     RunCommand,
 };
@@ -28,7 +28,20 @@ pub struct Init {
 
 impl RunCommand for Init {
     fn run_command(&mut self) -> Result<()> {
-        FuzzProject::init(self, self.fuzz_dir_wrapper.fuzz_dir.to_owned())?;
+        let manifest_path = if let Some(manifest_path) = self.fuzz_dir_wrapper.get_manifest_path() {
+            manifest_path
+        } else {
+            let metadata = cargo_metadata::MetadataCommand::new().no_deps().exec()?;
+            ManifestPath(
+                metadata
+                    .workspace_root
+                    .to_path_buf()
+                    .join("fuzz")
+                    .join("Cargo.toml")
+                    .into(),
+            )
+        };
+        FuzzProject::init(manifest_path, self)?;
         Ok(())
     }
 }
