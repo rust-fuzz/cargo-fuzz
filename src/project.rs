@@ -815,7 +815,7 @@ impl FuzzProject {
                     let status_result = cmd.status();
 
                     match status_result {
-                        Err(e) if e.raw_os_error() == Some(libc::E2BIG) => {
+                        Err(e) if e.kind() == std::io::ErrorKind::ArgumentListTooLong => {
                             eprintln!(
                                 "Worker {}: Argument list too long, falling back to temp directory",
                                 batch_idx
