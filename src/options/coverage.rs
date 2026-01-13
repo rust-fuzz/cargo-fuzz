@@ -29,7 +29,7 @@ pub struct Coverage {
     #[arg(
         short,
         long,
-        default_value_t = num_cpus::get().max(1) as u16,
+        default_value_t = u16::try_from(num_cpus::get().max(1)).unwrap_or(u16::MAX),
         value_parser = clap::value_parser!(u16).range(1..)
     )]
     /// Number of concurrent jobs to run
