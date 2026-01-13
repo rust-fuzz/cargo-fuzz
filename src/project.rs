@@ -779,7 +779,7 @@ impl FuzzProject {
         let effective_workers = if num_files < MIN_BATCH_SIZE {
             1
         } else {
-            (num_files / MIN_BATCH_SIZE).min(requested_workers).max(1)
+            (num_files / MIN_BATCH_SIZE).min(requested_workers)
         };
 
         let batch_size = num_files.div_ceil(effective_workers);
