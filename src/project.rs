@@ -775,7 +775,7 @@ impl FuzzProject {
 
         const MIN_BATCH_SIZE: usize = 100;
         let num_files = all_input_files.len();
-        let requested_workers = coverage.jobs as usize;
+        let requested_workers = usize::from(coverage.jobs);
 
         let effective_workers = if num_files < MIN_BATCH_SIZE {
             1
