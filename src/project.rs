@@ -797,13 +797,11 @@ impl FuzzProject {
         let result = pool.install(|| {
             all_input_files
                 .par_chunks(batch_size)
-                .try_for_each(|file_batch| -> Result<()> {
-                    let batch_id = rayon::current_thread_index()
-                        .expect("Calling within same thread pool should return Some");
-
+                .enumerate()
+                .try_for_each(|(batch_idx, file_batch)| -> Result<()> {
                     eprintln!(
                         "Worker {}: Generating coverage for {} files",
-                        batch_id,
+                        batch_idx,
                         file_batch.len()
                     );
 
@@ -811,7 +809,7 @@ impl FuzzProject {
                         coverage,
                         &coverage_out_raw_dir,
                         file_batch,
-                        batch_id,
+                        batch_idx,
                     )?;
 
                     let status_result = cmd.status();
@@ -820,14 +818,14 @@ impl FuzzProject {
                         Err(e) if e.raw_os_error() == Some(libc::E2BIG) => {
                             eprintln!(
                                 "Worker {}: Argument list too long, falling back to temp directory",
-                                batch_id
+                                batch_idx
                             );
                             let (mut cmd, _temp_corpus, _dummy_corpus) = self
                                 .coverage_cmd_with_dir(
                                     coverage,
                                     &coverage_out_raw_dir,
                                     file_batch,
-                                    batch_id,
+                                    batch_idx,
                                 )?;
                             let status = cmd
                                 .status()
