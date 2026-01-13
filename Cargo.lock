@@ -79,6 +79,7 @@ dependencies = [
  "cargo_metadata",
  "clap",
  "current_platform",
+ "libc",
  "num_cpus",
  "predicates",
  "rayon",

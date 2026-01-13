@@ -8,7 +8,6 @@ use std::collections::HashSet;
 use std::io::Read;
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::{
     env, ffi, fs,
     process::{Command, Stdio},
@@ -786,7 +785,7 @@ impl FuzzProject {
         let batch_size = num_files.div_ceil(effective_workers);
 
         eprintln!(
-            "Processing {} input files using {} workers (batch size: {})",
+            "Processing {} input files using {} workers (batch size: ~{})",
             num_files, effective_workers, batch_size
         );
 
@@ -795,36 +794,12 @@ impl FuzzProject {
             .build()
             .context("Failed to create thread pool")?;
 
-        let has_error = AtomicBool::new(false);
-        let batch_counter = AtomicUsize::new(0);
-
         let result = pool.install(|| {
             all_input_files
                 .par_chunks(batch_size)
                 .try_for_each(|file_batch| -> Result<()> {
-                    if has_error.load(Ordering::Relaxed) {
-                        return Ok(());
-                    }
-
-                    let batch_id = batch_counter.fetch_add(1, Ordering::Relaxed);
-                    let temp_corpus = tempfile::tempdir()?;
-                    let temp_corpus_path = temp_corpus.path();
-
-                    for file in file_batch {
-                        if let Some(file_name) = file.file_name() {
-                            let dest = temp_corpus_path.join(file_name);
-                            fs::hard_link(file, &dest).with_context(|| {
-                                format!("Failed to hard link {} to temp directory", file.display())
-                            })?;
-                        }
-                    }
-
-                    let (mut cmd, _tmp_dir) = self.create_coverage_cmd_with_id(
-                        coverage,
-                        &coverage_out_raw_dir,
-                        temp_corpus_path,
-                        batch_id,
-                    )?;
+                    let batch_id = rayon::current_thread_index()
+                        .expect("Calling within same thread pool should return Some");
 
                     eprintln!(
                         "Worker {}: Generating coverage for {} files",
@@ -832,18 +807,51 @@ impl FuzzProject {
                         file_batch.len()
                     );
 
-                    let status = cmd
-                        .status()
-                        .with_context(|| format!("Failed to run command: {:?}", cmd))?;
+                    let mut cmd = self.coverage_cmd_with_files(
+                        coverage,
+                        &coverage_out_raw_dir,
+                        file_batch,
+                        batch_id,
+                    )?;
 
-                    if !status.success() {
-                        has_error.store(true, Ordering::Relaxed);
-                        return Err(anyhow!(
-                            "Command exited with failure status {}: {:?}",
-                            status,
-                            cmd
-                        ))
-                        .context("Failed to generate coverage data");
+                    let status_result = cmd.status();
+
+                    match status_result {
+                        Err(e) if e.raw_os_error() == Some(libc::E2BIG) => {
+                            eprintln!(
+                                "Worker {}: Argument list too long, falling back to temp directory",
+                                batch_id
+                            );
+                            let (mut cmd, _temp_corpus, _dummy_corpus) = self
+                                .coverage_cmd_with_dir(
+                                    coverage,
+                                    &coverage_out_raw_dir,
+                                    file_batch,
+                                    batch_id,
+                                )?;
+                            let status = cmd
+                                .status()
+                                .with_context(|| format!("Failed to run command: {:?}", cmd))?;
+                            if !status.success() {
+                                return Err(anyhow!(
+                                    "Command exited with failure status {}: {:?}",
+                                    status,
+                                    cmd
+                                ))
+                                .context("Failed to generate coverage data");
+                            }
+                        }
+                        Err(e) => return Err(e).context("Failed to run coverage command"),
+                        Ok(status) => {
+                            if !status.success() {
+                                return Err(anyhow!(
+                                    "Command exited with failure status {}: {:?}",
+                                    status,
+                                    cmd
+                                ))
+                                .context("Failed to generate coverage data");
+                            }
+                        }
                     }
 
                     Ok(())
@@ -863,56 +871,91 @@ impl FuzzProject {
         Ok(())
     }
 
-    fn create_coverage_cmd_with_id(
-        &self,
-        coverage: &options::Coverage,
-        coverage_dir: &Path,
-        corpus_dir: &Path,
-        batch_id: usize,
-    ) -> Result<(Command, tempfile::TempDir)> {
-        let profraw_name = format!("batch-{}", batch_id);
-        self.create_coverage_cmd(coverage, coverage_dir, corpus_dir, &profraw_name)
-    }
-
-    fn create_coverage_cmd(
-        &self,
-        coverage: &options::Coverage,
-        coverage_dir: &Path,
-        corpus_dir: &Path,
-        profraw_suffix: &str,
-    ) -> Result<(Command, tempfile::TempDir)> {
-        let bin_path = {
-            let profile_subdir = if coverage.build.dev {
-                "debug"
-            } else {
-                "release"
-            };
-
-            let target_dir = self
-                .target_dir(&coverage.build)?
-                .expect("target dir for coverage command should never be None");
-            target_dir
-                .join(&coverage.build.triple)
-                .join(profile_subdir)
-                .join(&coverage.target)
+    fn get_coverage_bin_path(&self, coverage: &options::Coverage) -> Result<PathBuf> {
+        let profile_subdir = if coverage.build.dev {
+            "debug"
+        } else {
+            "release"
         };
 
+        let target_dir = self
+            .target_dir(&coverage.build)?
+            .expect("target dir for coverage command should never be None");
+
+        Ok(target_dir
+            .join(&coverage.build.triple)
+            .join(profile_subdir)
+            .join(&coverage.target))
+    }
+
+    fn coverage_cmd_with_dir(
+        &self,
+        coverage: &options::Coverage,
+        coverage_dir: &Path,
+        files: &[PathBuf],
+        batch_id: usize,
+    ) -> Result<(Command, tempfile::TempDir, tempfile::TempDir)> {
+        let temp_corpus = tempfile::tempdir()?;
+        let temp_corpus_path = temp_corpus.path();
+
+        for file in files {
+            if let Some(file_name) = file.file_name() {
+                let dest = temp_corpus_path.join(file_name);
+                fs::hard_link(file, &dest)
+                    .or_else(|_| fs::copy(file, &dest).map(|_| ()))
+                    .with_context(|| {
+                        format!(
+                            "Failed to link or copy {} to temp directory",
+                            file.display()
+                        )
+                    })?;
+            }
+        }
+
+        let bin_path = self.get_coverage_bin_path(coverage)?;
         let mut cmd = Command::new(bin_path);
 
         cmd.env(
             "LLVM_PROFILE_FILE",
-            coverage_dir.join(format!("default-{}.profraw", profraw_suffix)),
+            coverage_dir.join(format!("batch-{}.profraw", batch_id)),
         );
+
         cmd.arg("-merge=1");
-        let dummy_corpus = tempfile::tempdir()?;
-        cmd.arg(dummy_corpus.path());
-        cmd.arg(corpus_dir);
+        let dummy_merged_corpus = tempfile::tempdir()?;
+        cmd.arg(dummy_merged_corpus.path());
+        cmd.arg(temp_corpus_path);
 
         for arg in &coverage.args {
             cmd.arg(arg);
         }
 
-        Ok((cmd, dummy_corpus))
+        Ok((cmd, temp_corpus, dummy_merged_corpus))
+    }
+
+    fn coverage_cmd_with_files(
+        &self,
+        coverage: &options::Coverage,
+        coverage_dir: &Path,
+        files: &[PathBuf],
+        batch_id: usize,
+    ) -> Result<Command> {
+        let bin_path = self.get_coverage_bin_path(coverage)?;
+        let mut cmd = Command::new(bin_path);
+
+        cmd.env(
+            "LLVM_PROFILE_FILE",
+            coverage_dir.join(format!("batch-{}.profraw", batch_id)),
+        );
+
+        for arg in &coverage.args {
+            cmd.arg(arg);
+        }
+
+        for file in files {
+            cmd.arg(file);
+        }
+
+        Ok(cmd)
     }
 
     fn merge_coverage(
