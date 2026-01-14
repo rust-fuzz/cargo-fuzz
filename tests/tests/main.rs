@@ -99,16 +99,21 @@ fn init_twice() {
     assert!(project.fuzz_target_path("fuzz_target_1").is_file());
 
     // Second init should fail.
+    #[cfg(not(target_family = "windows"))]
+    let expected_err = "File exists (os error 17)";
+    #[cfg(target_family = "windows")]
+    let expected_err = "Cannot create a file when that file already exists. (os error 183)";
+
     project
         .cargo_fuzz()
         .arg("init")
         .assert()
-        .stderr(predicates::str::contains("File exists (os error 17)").and(
-            predicates::str::contains(format!(
+        .stderr(
+            predicates::str::contains(expected_err).and(predicates::str::contains(format!(
                 "failed to create directory {}",
                 project.fuzz_dir().display()
-            )),
-        ))
+            ))),
+        )
         .failure();
 }
 
@@ -227,6 +232,12 @@ fn add_twice() {
         .assert()
         .success();
     assert!(project.fuzz_target_path("new_fuzz_target").is_file());
+
+    #[cfg(not(target_family = "windows"))]
+    let expected_err = "File exists (os error 17)";
+    #[cfg(target_family = "windows")]
+    let expected_err = "The file exists. (os error 80)";
+
     project
         .cargo_fuzz()
         .arg("add")
@@ -234,7 +245,7 @@ fn add_twice() {
         .assert()
         .stderr(
             predicate::str::contains("could not add target")
-                .and(predicate::str::contains("File exists (os error 17)")),
+                .and(predicate::str::contains(expected_err)),
         )
         .failure();
 }
