@@ -17,6 +17,97 @@ use std::{
 const DEFAULT_FUZZ_DIR: &str = "fuzz";
 const MIN_BATCH_SIZE: usize = 100;
 
+fn collect_corpus_files(dir: &Path) -> Result<Vec<PathBuf>> {
+    let mut files: Vec<PathBuf> = fs::read_dir(dir)?
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_type().map(|ft| ft.is_file()).unwrap_or(false))
+        .map(|e| e.path())
+        .collect();
+    files.sort();
+    Ok(files)
+}
+
+fn parse_control_file(path: &Path) -> Result<(usize, usize, Vec<String>, Vec<String>)> {
+    let content = fs::read_to_string(path)
+        .with_context(|| format!("Failed to read control file: {:?}", path))?;
+    let lines: Vec<&str> = content.lines().collect();
+
+    if lines.len() < 2 {
+        bail!("Control file has fewer than 2 lines");
+    }
+
+    let total_files: usize = lines[0]
+        .parse()
+        .context("Failed to parse total file count")?;
+    let first_corpus_size: usize = lines[1]
+        .parse()
+        .context("Failed to parse first corpus size")?;
+
+    if lines.len() < 2 + total_files {
+        bail!("Control file doesn't have enough lines for file paths");
+    }
+
+    let file_paths: Vec<String> = lines[2..2 + total_files]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+    let coverage_entries: Vec<String> = lines[2 + total_files..]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+
+    Ok((total_files, first_corpus_size, file_paths, coverage_entries))
+}
+
+fn merge_control_files(base_control: &Path, additional_dirs: &[&Path]) -> Result<()> {
+    let (_total_files, first_corpus_size, mut file_paths, coverage_entries) =
+        parse_control_file(base_control)?;
+
+    for dir in additional_dirs {
+        let new_files = collect_corpus_files(dir)?;
+        for file in new_files {
+            file_paths.push(file.to_string_lossy().into_owned());
+        }
+    }
+
+    let new_total = file_paths.len();
+    let mut updated_control = String::new();
+    updated_control.push_str(&format!("{}\n", new_total));
+    updated_control.push_str(&format!("{}\n", first_corpus_size));
+
+    for path in &file_paths {
+        updated_control.push_str(path);
+        updated_control.push('\n');
+    }
+
+    for entry in &coverage_entries {
+        updated_control.push_str(entry);
+        updated_control.push('\n');
+    }
+
+    fs::write(base_control, updated_control)
+        .with_context(|| format!("Failed to write updated control file: {:?}", base_control))?;
+
+    Ok(())
+}
+
+fn link_or_copy_files(files: &[PathBuf], dest_dir: &Path) -> Result<()> {
+    for file in files {
+        if let Some(file_name) = file.file_name() {
+            let dest = dest_dir.join(file_name);
+            fs::hard_link(file, &dest)
+                .or_else(|_| fs::copy(file, &dest).map(|_| ()))
+                .with_context(|| {
+                    format!(
+                        "Failed to link or copy {} to temp directory",
+                        file.display()
+                    )
+                })?;
+        }
+    }
+    Ok(())
+}
+
 pub struct FuzzProject {
     /// The project with fuzz targets
     fuzz_dir: PathBuf,
@@ -690,23 +781,6 @@ impl FuzzProject {
         }
     }
 
-    fn link_or_copy_files(files: &[PathBuf], dest_dir: &Path) -> Result<()> {
-        for file in files {
-            if let Some(file_name) = file.file_name() {
-                let dest = dest_dir.join(file_name);
-                fs::hard_link(file, &dest)
-                    .or_else(|_| fs::copy(file, &dest).map(|_| ()))
-                    .with_context(|| {
-                        format!(
-                            "Failed to link or copy {} to temp directory",
-                            file.display()
-                        )
-                    })?;
-            }
-        }
-        Ok(())
-    }
-
     pub fn exec_cmin(&self, cmin: &options::Cmin) -> Result<()> {
         self.exec_build(BuildMode::Build, &cmin.build, Some(&cmin.target))?;
 
@@ -736,7 +810,12 @@ impl FuzzProject {
 
         let num_files = all_input_files.len();
         let requested_workers = usize::from(cmin.jobs);
-        let effective_workers = Self::calculate_effective_workers(num_files, requested_workers);
+        let effective_workers = match cmin.strategy {
+            crate::options::CminStrategy::Speed => {
+                Self::calculate_effective_workers(num_files, requested_workers)
+            }
+            crate::options::CminStrategy::Size => 1,
+        };
         let batch_size = num_files.div_ceil(effective_workers);
 
         eprintln!(
@@ -746,31 +825,146 @@ impl FuzzProject {
 
         let tmp_root = tempfile::tempdir()?;
 
-        let pool = rayon::ThreadPoolBuilder::new()
-            .num_threads(effective_workers)
-            .build()
-            .context("Failed to create thread pool")?;
+        // Handle single worker case early
+        if effective_workers == 1 {
+            eprintln!("Worker 0: Minimizing {} files", all_input_files.len());
 
-        let result = pool.install(|| {
-            all_input_files
-                .par_chunks(batch_size)
-                .enumerate()
-                .try_for_each(|(batch_idx, file_batch)| -> Result<()> {
-                    eprintln!("Worker {}: Minimizing {} files", batch_idx, file_batch.len());
+            let batch_input = tmp_root.path().join("input-0");
+            let batch_output = tmp_root.path().join("0");
+            fs::create_dir(&batch_input)?;
+            fs::create_dir(&batch_output)?;
+            let control_file = batch_output.with_extension("control");
 
-                    let batch_input = tmp_root.path().join(format!("batch-{}-input", batch_idx));
-                    let batch_output = tmp_root.path().join(format!("batch-{}-output", batch_idx));
+            link_or_copy_files(&all_input_files, &batch_input)?;
+
+            let mut cmd = Command::new(&bin_path);
+            cmd.arg(&artifact_arg);
+            for arg in &cmin.args {
+                cmd.arg(arg);
+            }
+            cmd.arg("-merge=1");
+            cmd.arg(format!("-merge_control_file={}", control_file.display()));
+            cmd.arg(&batch_output).arg(&batch_input);
+
+            let status = cmd
+                .status()
+                .with_context(|| format!("Failed to run command: {:?}", cmd))?;
+            if !status.success() {
+                return Err(anyhow!(
+                    "Command exited with failure status {}: {:?}",
+                    status,
+                    cmd
+                ))
+                .context("Failed to minimize batch");
+            }
+
+            let single_batch = batch_output;
+            let old_corpus = tmp_root.path().join("old");
+            fs::rename(&corpus_str, &old_corpus)?;
+            fs::rename(&single_batch, &corpus_str)?;
+            return Ok(());
+        }
+
+        // Setup channels for coordinator/worker pattern
+        use crossbeam::channel;
+        use std::collections::VecDeque;
+        use std::thread;
+
+        type Batch = (PathBuf, PathBuf); // (dir, control_file)
+        type Job = (Batch, Batch); // (batch1, batch2)
+
+        enum ResultMsg {
+            Initial(Batch),
+            Merged(Batch),
+        }
+
+        let channel_capacity = effective_workers.saturating_mul(2);
+        let (job_tx, job_rx) = channel::bounded::<Job>(channel_capacity);
+        let (result_tx, result_rx) = channel::bounded::<ResultMsg>(channel_capacity);
+
+        // Spawn worker threads for merging
+        let workers: Vec<_> = (0..effective_workers)
+            .map(|worker_id| {
+                let job_rx = job_rx.clone();
+                let result_tx = result_tx.clone();
+                let bin_path = bin_path.clone();
+                let artifact_arg = artifact_arg.clone();
+                let args = cmin.args.clone();
+
+                thread::spawn(move || -> Result<()> {
+                    while let Ok(((dir1, ctrl1), (dir2, _ctrl2))) = job_rx.recv() {
+                        eprintln!(
+                            "Merge worker {}: Merging {:?} and {:?}",
+                            worker_id,
+                            dir1.file_name().unwrap_or_default(),
+                            dir2.file_name().unwrap_or_default()
+                        );
+
+                        let dir2_ref: &Path = dir2.as_ref();
+                        merge_control_files(&ctrl1, &[dir2_ref])?;
+
+                        let mut cmd = Command::new(&bin_path);
+                        cmd.arg(&artifact_arg);
+                        for arg in &args {
+                            cmd.arg(arg);
+                        }
+                        cmd.arg("-merge=1");
+                        cmd.arg(format!("-merge_control_file={}", ctrl1.display()));
+                        cmd.arg(&dir1).arg(&dir2);
+
+                        let status = cmd
+                            .status()
+                            .with_context(|| format!("Failed to run merge command: {:?}", cmd))?;
+                        if !status.success() {
+                            return Err(anyhow!(
+                                "Command exited with failure status {}: {:?}",
+                                status,
+                                cmd
+                            ))
+                            .context("Failed to merge batch pair");
+                        }
+
+                        if result_tx.send(ResultMsg::Merged((dir1, ctrl1))).is_err() {
+                            break;
+                        }
+                    }
+                    Ok(())
+                })
+            })
+            .collect();
+
+        let expected_initial = all_input_files.chunks(batch_size).len();
+
+        // Spawn initial minimization threads
+        let initial_threads: Vec<_> = all_input_files
+            .chunks(batch_size)
+            .enumerate()
+            .map(|(batch_idx, file_batch)| {
+                let result_tx = result_tx.clone();
+                let tmp_root_path = tmp_root.path().to_path_buf();
+                let bin_path = bin_path.clone();
+                let artifact_arg = artifact_arg.clone();
+                let args = cmin.args.clone();
+                let file_batch = file_batch.to_vec();
+
+                thread::spawn(move || -> Result<()> {
+                    eprintln!(
+                        "Worker {}: Minimizing {} files",
+                        batch_idx,
+                        file_batch.len()
+                    );
+
+                    let batch_input = tmp_root_path.join(format!("input-{}", batch_idx));
+                    let batch_output = tmp_root_path.join(format!("{}", batch_idx));
                     fs::create_dir(&batch_input)?;
                     fs::create_dir(&batch_output)?;
+                    let control_file = batch_output.with_extension("control");
 
-                    Self::link_or_copy_files(file_batch, &batch_input)?;
-
-                    let final_batch_dir = tmp_root.path().join(format!("batch-{}", batch_idx));
-                    let control_file = final_batch_dir.with_extension("control");
+                    link_or_copy_files(&file_batch, &batch_input)?;
 
                     let mut cmd = Command::new(&bin_path);
                     cmd.arg(&artifact_arg);
-                    for arg in &cmin.args {
+                    for arg in &args {
                         cmd.arg(arg);
                     }
                     cmd.arg("-merge=1");
@@ -789,183 +983,141 @@ impl FuzzProject {
                         .context("Failed to minimize batch");
                     }
 
-                    fs::rename(&batch_output, &final_batch_dir)?;
-
+                    // Send completed batch immediately
+                    if result_tx
+                        .send(ResultMsg::Initial((batch_output, control_file)))
+                        .is_err()
+                    {
+                        return Err(anyhow!("Result channel closed before batch completion"));
+                    }
                     Ok(())
                 })
-        });
-
-        result?;
-
-        let batch_output_count: usize = fs::read_dir(tmp_root.path())?
-            .filter_map(|entry| entry.ok())
-            .filter(|entry| {
-                entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false)
-                    && entry
-                        .file_name()
-                        .to_str()
-                        .and_then(|s| s.strip_prefix("batch-"))
-                        .and_then(|suffix| suffix.parse::<usize>().ok())
-                        .is_some()
             })
-            .map(|entry| {
-                fs::read_dir(entry.path())
-                    .map(|entries| entries.filter_map(|e| e.ok()).count())
-                    .unwrap_or(0)
-            })
-            .sum();
+            .collect();
 
-        if effective_workers > 1 {
-            eprintln!(
-                "Performing tournament-style merge of {} batches ({} files)",
-                effective_workers, batch_output_count
-            );
+        drop(result_tx); // Only workers and initial threads have clones
 
-            let mut batch_items: Vec<(PathBuf, PathBuf)> = fs::read_dir(tmp_root.path())?
-                .filter_map(|entry| entry.ok())
-                .filter(|entry| {
-                    entry.file_type().map(|ft| ft.is_dir()).unwrap_or(false)
-                        && entry
-                            .file_name()
-                            .to_str()
-                            .and_then(|s| s.strip_prefix("batch-"))
-                            .and_then(|suffix| suffix.parse::<usize>().ok())
-                            .is_some()
-                })
-                .map(|entry| {
-                    let corpus_dir = entry.path();
-                    let control_file = corpus_dir.with_extension("control");
-                    (corpus_dir, control_file)
-                })
-                .collect();
-            batch_items.sort_by(|a, b| a.0.cmp(&b.0));
+        // Spawn coordinator thread
+        let coord_job_tx = job_tx.clone();
+        let coordinator = thread::spawn(move || -> Result<Batch> {
+            let mut queue: VecDeque<Batch> = VecDeque::new();
+            let mut in_flight: usize = 0;
+            let mut initial_received = 0;
 
-            let mut round = 0;
-            while batch_items.len() > 1 {
-                eprintln!(
-                    "Merge round {}: {} batches → {} batches",
-                    round,
-                    batch_items.len(),
-                    (batch_items.len() + 1) / 2
-                );
+            loop {
+                if queue.len() == 1 && in_flight == 0 && initial_received >= expected_initial {
+                    break;
+                }
 
-                let next_batch_items: Vec<(PathBuf, PathBuf)> = pool.install(|| {
-                    batch_items
-                        .par_chunks(2)
-                        .enumerate()
-                        .map(|(_, pair)| -> Result<(PathBuf, PathBuf)> {
-                            if pair.len() == 1 {
-                                return Ok(pair[0].clone());
-                            }
+                let msg = match result_rx.recv() {
+                    Ok(msg) => msg,
+                    Err(_) => {
+                        return Err(anyhow!(
+                            "Result channel closed early: received {}/{} initial batches, queue_len={}, in_flight={}",
+                            initial_received,
+                            expected_initial,
+                            queue.len(),
+                            in_flight
+                        ));
+                    }
+                };
 
-                            let (output_dir, control_file) = pair[0].clone();
+                match msg {
+                    ResultMsg::Initial(batch) => {
+                        initial_received += 1;
+                        queue.push_back(batch);
+                    }
+                    ResultMsg::Merged(batch) => {
+                        in_flight = in_flight.saturating_sub(1);
+                        queue.push_back(batch);
+                    }
+                }
 
-                            // Read the control file to get current file count
-                            let control_content = fs::read_to_string(&control_file)
-                                .with_context(|| format!("Failed to read control file: {:?}", control_file))?;
-                            let lines: Vec<&str> = control_content.lines().collect();
-
-                            // Parse the first two lines: total_files and first_corpus_size
-                            let total_files: usize = lines[0].parse()
-                                .context("Failed to parse total file count from control file")?;
-                            let first_corpus_size: usize = lines[1].parse()
-                                .context("Failed to parse first corpus size from control file")?;
-
-                            // Collect new files from additional batches
-                            let mut new_files = Vec::new();
-                            for (batch_dir, _) in &pair[1..] {
-                                let mut batch_files: Vec<PathBuf> = fs::read_dir(batch_dir)?
-                                    .filter_map(|e| e.ok())
-                                    .filter(|e| e.file_type().map(|ft| ft.is_file()).unwrap_or(false))
-                                    .map(|e| e.path())
-                                    .collect();
-                                batch_files.sort();
-                                new_files.extend(batch_files);
-                            }
-
-                            // Update control file with new file list
-                            let new_total = total_files + new_files.len();
-                            let mut updated_control = String::new();
-                            updated_control.push_str(&format!("{}\n", new_total));
-                            updated_control.push_str(&format!("{}\n", first_corpus_size));
-
-                            // Copy existing file paths
-                            for line in &lines[2..2+total_files] {
-                                updated_control.push_str(line);
-                                updated_control.push('\n');
-                            }
-
-                            // Append new file paths
-                            for file in &new_files {
-                                updated_control.push_str(&file.to_string_lossy());
-                                updated_control.push('\n');
-                            }
-
-                            // Copy rest of control file (STARTED/FT/COV entries)
-                            for line in &lines[2+total_files..] {
-                                updated_control.push_str(line);
-                                updated_control.push('\n');
-                            }
-
-                            fs::write(&control_file, updated_control)
-                                .with_context(|| format!("Failed to write updated control file: {:?}", control_file))?;
-
-                            // Now merge using the updated control file
-                            let mut cmd = Command::new(&bin_path);
-                            cmd.arg(&artifact_arg);
-                            for arg in &cmin.args {
-                                cmd.arg(arg);
-                            }
-                            cmd.arg("-merge=1");
-                            cmd.arg(format!("-merge_control_file={}", control_file.display()));
-                            cmd.arg(&output_dir);
-
-                            for (batch_dir, _) in &pair[1..] {
-                                cmd.arg(batch_dir);
-                            }
-
-                            let status = cmd.status().with_context(|| {
-                                format!("Failed to run merge command: {:?}", cmd)
-                            })?;
-                            if !status.success() {
-                                return Err(anyhow!(
-                                    "Command exited with failure status {}: {:?}",
-                                    status,
-                                    cmd
-                                ))
-                                .context("Failed to merge batch pair");
-                            }
-
-                            Ok((output_dir, control_file))
-                        })
-                        .collect::<Result<Vec<(PathBuf, PathBuf)>>>()
-                })?;
-
-                batch_items = next_batch_items;
-                round += 1;
+                // Send jobs while we have pairs
+                while queue.len() >= 2 && in_flight < effective_workers {
+                    let (Some(batch1), Some(batch2)) = (queue.pop_front(), queue.pop_front())
+                    else {
+                        break;
+                    };
+                    if coord_job_tx.send((batch1, batch2)).is_err() {
+                        return Err(anyhow!(
+                            "Merge workers exited before all batches were merged"
+                        ));
+                    }
+                    in_flight += 1;
+                }
             }
 
-            let (final_corpus, _final_control) = batch_items
-                .into_iter()
-                .next()
-                .expect("Should have exactly one batch after tournament merge");
+            queue
+                .pop_front()
+                .ok_or_else(|| anyhow!("No final batch found"))
+        });
 
-            let final_count = fs::read_dir(&final_corpus)?
-                .filter_map(|e| e.ok())
-                .filter(|e| e.file_type().map(|ft| ft.is_file()).unwrap_or(false))
-                .count();
-
-            eprintln!("Final corpus: {} files", final_count);
-
-            let old_corpus = tmp_root.path().join("old");
-            fs::rename(&corpus_str, &old_corpus)?;
-            fs::rename(&final_corpus, &corpus_str)?;
-        } else {
-            let single_batch = tmp_root.path().join("batch-0");
-            let old_corpus = tmp_root.path().join("old");
-            fs::rename(&corpus_str, &old_corpus)?;
-            fs::rename(&single_batch, &corpus_str)?;
+        // Wait for initial minimization threads
+        let mut initial_error: Option<anyhow::Error> = None;
+        for (i, thread) in initial_threads.into_iter().enumerate() {
+            match thread.join() {
+                Ok(Ok(())) => {}
+                Ok(Err(err)) => {
+                    if initial_error.is_none() {
+                        initial_error = Some(err);
+                    }
+                }
+                Err(_) => {
+                    if initial_error.is_none() {
+                        initial_error = Some(anyhow!("Initial worker thread {} panicked", i));
+                    }
+                }
+            }
         }
+
+        // Drop all job senders so workers know to stop once queue is empty
+        drop(job_tx);
+
+        // Wait for coordinator to finish
+        let coordinator_result = match coordinator.join() {
+            Ok(result) => result,
+            Err(_) => Err(anyhow!("Coordinator thread panicked")),
+        };
+
+        // Wait for all workers to finish
+        let mut worker_error: Option<anyhow::Error> = None;
+        for (i, thread) in workers.into_iter().enumerate() {
+            match thread.join() {
+                Ok(Ok(())) => {}
+                Ok(Err(err)) => {
+                    if worker_error.is_none() {
+                        worker_error = Some(err);
+                    }
+                }
+                Err(_) => {
+                    if worker_error.is_none() {
+                        worker_error = Some(anyhow!("Merge worker thread {} panicked", i));
+                    }
+                }
+            }
+        }
+
+        if let Some(err) = initial_error {
+            return Err(err);
+        }
+
+        if let Some(err) = worker_error {
+            return Err(err);
+        }
+
+        let (final_corpus, _final_control) = coordinator_result?;
+
+        let final_count = fs::read_dir(&final_corpus)?
+            .filter_map(|e| e.ok())
+            .filter(|e| e.file_type().map(|ft| ft.is_file()).unwrap_or(false))
+            .count();
+
+        eprintln!("Final corpus: {} files", final_count);
+
+        let old_corpus = tmp_root.path().join("old");
+        fs::rename(&corpus_str, &old_corpus)?;
+        fs::rename(&final_corpus, &corpus_str)?;
 
         Ok(())
     }
@@ -1147,7 +1299,7 @@ impl FuzzProject {
         let temp_corpus = tempfile::tempdir()?;
         let temp_corpus_path = temp_corpus.path();
 
-        Self::link_or_copy_files(files, temp_corpus_path)?;
+        link_or_copy_files(files, temp_corpus_path)?;
 
         let bin_path = self.get_coverage_bin_path(coverage)?;
         let mut cmd = Command::new(bin_path);

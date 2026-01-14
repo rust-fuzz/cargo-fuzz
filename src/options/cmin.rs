@@ -4,7 +4,7 @@ use crate::{
     RunCommand,
 };
 use anyhow::Result;
-use clap::Parser;
+use clap::{Parser, ValueEnum};
 use std::path::PathBuf;
 
 #[derive(Clone, Debug, Parser)]
@@ -31,9 +31,20 @@ pub struct Cmin {
     /// Number of parallel jobs (defaults to number of CPUs)
     pub jobs: u16,
 
+    #[arg(long, value_enum, default_value_t = CminStrategy::Speed)]
+    /// Minimization strategy: `speed` finds a minset without global optimization,
+    /// while `size` produces the globally optimal smallest minset.
+    pub strategy: CminStrategy,
+
     #[arg(last(true))]
     /// Additional libFuzzer arguments passed through to the binary
     pub args: Vec<String>,
+}
+
+#[derive(Clone, Copy, Debug, ValueEnum)]
+pub enum CminStrategy {
+    Speed,
+    Size,
 }
 
 impl RunCommand for Cmin {

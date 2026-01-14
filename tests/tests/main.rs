@@ -714,24 +714,37 @@ fn cmin() {
         .file(corpus.join("4"), "abcd")
         .build();
 
-    let corpus_count = || {
-        fs::read_dir(project.root().join("fuzz").join("corpus").join("foo"))
-            .unwrap()
-            .count()
+    let corpus_root = project.root().join("fuzz").join("corpus").join("foo");
+    let write_seed_corpus = || {
+        let _ = fs::remove_dir_all(&corpus_root);
+        fs::create_dir_all(&corpus_root).unwrap();
+        fs::write(corpus_root.join("0"), "").unwrap();
+        fs::write(corpus_root.join("1"), "a").unwrap();
+        fs::write(corpus_root.join("2"), "ab").unwrap();
+        fs::write(corpus_root.join("3"), "abc").unwrap();
+        fs::write(corpus_root.join("4"), "abcd").unwrap();
     };
-    assert_eq!(corpus_count(), 5);
 
-    project
-        .cargo_fuzz()
-        .arg("cmin")
-        .arg("foo")
-        .assert()
-        .success();
+    let corpus_count = || fs::read_dir(&corpus_root).unwrap().count();
 
-    // XXX: Ideally this would be `assert_eq!(corpus_count(), 1)` but that has
-    // started failing in newer `rustc` / libFuzzer combinations. Just assert
-    // that the corpus got smaller, at least.
-    assert!(corpus_count() < 5);
+    for strategy in ["speed", "size"] {
+        write_seed_corpus();
+        assert_eq!(corpus_count(), 5);
+
+        project
+            .cargo_fuzz()
+            .arg("cmin")
+            .arg("--strategy")
+            .arg(strategy)
+            .arg("foo")
+            .assert()
+            .success();
+
+        // XXX: Ideally this would be `assert_eq!(corpus_count(), 1)` but that has
+        // started failing in newer `rustc` / libFuzzer combinations. Just assert
+        // that the corpus got smaller, at least.
+        assert!(corpus_count() < 5);
+    }
 }
 
 #[test]
