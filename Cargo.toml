@@ -15,7 +15,7 @@ edition = "2021"
 [dependencies]
 anyhow = "1.0.66"
 current_platform = "0.2.0"
-clap = { version = "4.0.29", features = ["derive", "deprecated"] }
+clap = { version = "4.4.0", features = ["derive", "deprecated"] }
 tempfile = "3.3.0"
 toml = "0.5.9"
 rustc_version = "0.4.0"
