@@ -4,8 +4,9 @@ use self::project::*;
 use assert_cmd::prelude::*;
 use predicates::prelude::*;
 use std::fs;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::str::FromStr;
 
 fn cargo_fuzz() -> Command {
     Command::cargo_bin("cargo-fuzz").unwrap()
@@ -193,7 +194,10 @@ fn init_with_libafl() {
 
 #[test]
 fn add() {
-    let project = project("add").with_fuzz().build();
+    let project = project("add")
+        .with_fuzz()
+        .default_src_lib(Some(PathBuf::from_str("fuzz").unwrap()))
+        .build();
     project
         .cargo_fuzz()
         .arg("add")
@@ -219,7 +223,10 @@ fn add() {
 
 #[test]
 fn add_twice() {
-    let project = project("add").with_fuzz().build();
+    let project = project("add")
+        .with_fuzz()
+        .default_src_lib(Some(PathBuf::from_str("fuzz").unwrap()))
+        .build();
     project
         .cargo_fuzz()
         .arg("add")
@@ -241,7 +248,10 @@ fn add_twice() {
 
 #[test]
 fn list() {
-    let project = project("add").with_fuzz().build();
+    let project = project("add")
+        .with_fuzz()
+        .default_src_lib(Some(PathBuf::from_str("fuzz").unwrap()))
+        .build();
 
     // Create some targets.
     project.cargo_fuzz().arg("add").arg("c").assert().success();
@@ -782,7 +792,10 @@ fn tmin() {
 
 #[test]
 fn build_all() {
-    let project = project("build_all").with_fuzz().build();
+    let project = project("build_all")
+        .with_fuzz()
+        .default_src_lib(Some(PathBuf::from_str("fuzz").unwrap()))
+        .build();
 
     // Create some targets.
     project
@@ -823,7 +836,10 @@ fn build_all() {
 
 #[test]
 fn build_one() {
-    let project = project("build_one").with_fuzz().build();
+    let project = project("build_one")
+        .with_fuzz()
+        .default_src_lib(Some(PathBuf::from_str("fuzz").unwrap()))
+        .build();
 
     // Create some targets.
     project
@@ -868,7 +884,10 @@ fn build_one() {
 
 #[test]
 fn build_dev() {
-    let project = project("build_dev").with_fuzz().build();
+    let project = project("build_dev")
+        .with_fuzz()
+        .default_src_lib(Some(PathBuf::from_str("fuzz").unwrap()))
+        .build();
 
     // Create some targets.
     project
@@ -919,7 +938,10 @@ fn build_dev() {
 
 #[test]
 fn build_stripping_dead_code() {
-    let project = project("build_strip").with_fuzz().build();
+    let project = project("build_strip")
+        .with_fuzz()
+        .default_src_lib(Some(PathBuf::from_str("fuzz").unwrap()))
+        .build();
 
     // Create some targets.
     project
@@ -954,7 +976,10 @@ fn build_stripping_dead_code() {
 
 #[test]
 fn build_with_all_llvm_features() {
-    let project = project("build_all_feats").with_fuzz().build();
+    let project = project("build_all_feats")
+        .with_fuzz()
+        .default_src_lib(Some(PathBuf::from_str("fuzz").unwrap()))
+        .build();
 
     // Create some targets.
     project
@@ -1056,6 +1081,101 @@ fn run_diagnostic_contains_fuzz_dir() {
         .failure();
 }
 
+#[test]
+fn build_target_with_custom_fuzz_dir_as_workspace_member() {
+    let mut project_builder = project("init");
+    let project = project_builder.build();
+    project
+        .cargo_fuzz()
+        .arg("init")
+        .arg(format!(
+            "--fuzz-dir={}/unguessable-name",
+            project.root().to_str().unwrap()
+        ))
+        .assert()
+        .success();
+    project_builder.set_workspace_members(&[".", "unguessable-name"]);
+
+    project
+        .cargo_fuzz()
+        .arg("build")
+        .arg("fuzz_target_1")
+        .assert()
+        .stderr(
+            predicates::str::contains(
+                "error: no bin target named `fuzz_target_1` in default-run packages",
+            )
+            .and(predicates::str::contains(
+                "help: available bin in `init-fuzz` package:",
+            ))
+            .and(predicates::str::contains("fuzz_target_1")),
+        )
+        .failure();
+
+    project
+        .cargo_fuzz()
+        .arg("build")
+        .arg("-p")
+        .arg("init-fuzz")
+        .arg("fuzz_target_1")
+        .assert()
+        .success();
+
+    project
+        .cargo_fuzz()
+        .arg("build")
+        .arg("--workspace")
+        .arg("fuzz_target_1")
+        .assert()
+        .success();
+}
+
+#[test]
+fn run_with_custom_fuzz_dir_as_workspace_member() {
+    let mut project_builder = project("init");
+    let project = project_builder.build();
+    project
+        .cargo_fuzz()
+        .arg("init")
+        .arg(format!(
+            "--fuzz-dir={}/unguessable-name",
+            project.root().to_str().unwrap()
+        ))
+        .assert()
+        .success();
+    project_builder.set_workspace_members(&[".", "unguessable-name"]);
+
+    project
+        .cargo_fuzz()
+        .arg("run")
+        .arg("fuzz_target_1")
+        .arg("--")
+        .arg("-runs=2")
+        .assert()
+        .stderr(
+            predicates::str::contains(
+                "error: no bin target named `fuzz_target_1` in default-run packages",
+            )
+            .and(predicates::str::contains(
+                "help: available bin in `init-fuzz` package:",
+            ))
+            .and(predicates::str::contains("fuzz_target_1")),
+        )
+        .failure();
+
+    project
+        .cargo_fuzz()
+        .arg("run")
+        .arg("-p")
+        .arg("init-fuzz")
+        .arg("fuzz_target_1")
+        .arg("--")
+        .arg("-runs=2")
+        .assert()
+        .stderr(predicate::str::contains("Done 2 runs"))
+        .success();
+}
+
 fn project_with_fuzz_dir(
     project_name: &str,
     fuzz_dir_opt: Option<&str>,
@@ -1070,7 +1190,10 @@ fn project_with_fuzz_dir(
 
 #[test]
 fn options_passed_to_rustc() {
-    let project = project("test_options").with_fuzz().build();
+    let project = project("test_options")
+        .with_fuzz()
+        .default_src_lib(Some(PathBuf::from_str("fuzz").unwrap()))
+        .build();
 
     // Create some targets.
     project

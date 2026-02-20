@@ -170,9 +170,15 @@ impl ProjectBuilder {
         )
     }
 
-    pub fn default_src_lib(&mut self) -> &mut Self {
+    pub fn default_src_lib(&mut self, prefix: Option<PathBuf>) -> &mut Self {
+        let path = Path::new("src").join("lib.rs");
+        let path = if let Some(prefix) = prefix {
+            prefix.join(path)
+        } else {
+            path
+        };
         self.file(
-            Path::new("src").join("lib.rs"),
+            path,
             r#"
                 pub fn pass_fuzzing(data: &[u8]) {
                     let _ = data;
@@ -192,7 +198,7 @@ impl ProjectBuilder {
             self.default_cargo_toml();
         }
         if !self.saw_main_or_lib {
-            self.default_src_lib();
+            self.default_src_lib(None);
         }
         Project {
             fuzz_dir: self.project.fuzz_dir.clone(),
