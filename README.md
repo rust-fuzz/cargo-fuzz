@@ -11,8 +11,10 @@ $ cargo install cargo-fuzz
 ```
 
 Note: `libFuzzer` needs LLVM sanitizer support, so this only works on x86-64 and Aarch64,
-and only on Unix-like operating systems (not Windows). This also needs a nightly compiler since it uses some
- unstable command-line flags. You'll also need a C++ compiler with C++11 support.
+and only on Unix-like operating systems (not Windows). The default sanitizer-backed workflow
+also uses unstable command-line flags, so it still usually needs a nightly compiler. A reduced
+`--sanitizer none` mode can run on stable, but without sanitizer-based bug finding. You'll also
+need a C++ compiler with C++11 support.
 
 ## Usage
 
@@ -33,6 +35,25 @@ Create a new fuzzing target!
 ### `cargo fuzz run <target>`
 
 Run a fuzzing target and find bugs!
+
+### Stable Rust in reduced mode
+
+`cargo fuzz` normally relies on sanitizer support. The default `cargo fuzz run <target>` path
+enables AddressSanitizer and still requires nightly.
+
+If you need a reduced mode that works on stable, pass `--sanitizer none`:
+
+```sh
+$ cargo fuzz check --sanitizer none <target>
+$ cargo fuzz run --sanitizer none <target> -- -runs=1
+```
+
+This still gives you coverage-guided fuzzing and can catch crashes, panics, and similar failures,
+but it disables sanitizer-based findings such as ASan, LSan, MSan, and TSan.
+
+On stable, do not expect options that require Cargo or rustc `-Z` flags, such as the default
+AddressSanitizer flow, `--sanitizer address`, `--sanitizer memory`, `--build-std`, or
+`--careful`, to work.
 
 ### `cargo fuzz fmt <target> <input>`
 

@@ -45,7 +45,12 @@ libFuzzer options below), this will run indefinitely.
 
 By default fuzz targets are built with optimizations equivalent to
 `cargo build --release`, but with debug assertions and overflow checks enabled.
-Address Sanitizer is also enabled by default.";
+Address Sanitizer is also enabled by default.
+
+That default sanitizer-backed workflow still requires nightly. Reduced fuzzing
+without sanitizer checks is available with `--sanitizer none`, which can work
+on stable as long as you avoid other nightly-only options such as
+`--build-std`, `--careful`, or extra `-Z` flags.";
 
 const RUN_AFTER_HELP: &str = "\
 A full list of libFuzzer options can be found at
@@ -75,7 +80,12 @@ include:
 const BUILD_BEFORE_HELP: &str = "\
 By default fuzz targets are built with optimizations equivalent to
 `cargo build --release`, but with debug assertions and overflow checks enabled.
-Address Sanitizer is also enabled by default.";
+Address Sanitizer is also enabled by default.
+
+That default sanitizer-backed workflow still requires nightly. Reduced builds
+without sanitizer checks are available with `--sanitizer none`, which can work
+on stable as long as you avoid other nightly-only options such as
+`--build-std`, `--careful`, or extra `-Z` flags.";
 
 const BUILD_AFTER_HELP: &str = "\
 Sanitizers perform checks necessary for detecting bugs in unsafe code
