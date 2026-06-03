@@ -1,8 +1,4 @@
-use crate::{
-    options::{BuildOptions, FuzzDirWrapper},
-    project::FuzzProject,
-    RunCommand,
-};
+use crate::{options::BuildOptions, project::FuzzProject, RunCommand};
 use anyhow::Result;
 use clap::Parser;
 
@@ -16,9 +12,6 @@ pub struct Run {
 
     /// Custom corpus directories or artifact files.
     pub corpus: Vec<String>,
-
-    #[command(flatten)]
-    pub fuzz_dir_wrapper: FuzzDirWrapper,
 
     #[arg(
         short,
@@ -36,7 +29,7 @@ pub struct Run {
 
 impl RunCommand for Run {
     fn run_command(&mut self) -> Result<()> {
-        let project = FuzzProject::new(self.fuzz_dir_wrapper.fuzz_dir.to_owned())?;
+        let project = FuzzProject::new(self.build.fuzz_dir_wrapper.get_manifest_path())?;
         project.exec_fuzz(self)
     }
 }

@@ -14,7 +14,7 @@ pub struct Add {
 
 impl RunCommand for Add {
     fn run_command(&mut self) -> Result<()> {
-        let project = FuzzProject::new(self.fuzz_dir_wrapper.fuzz_dir.to_owned())?;
+        let project = FuzzProject::new(self.fuzz_dir_wrapper.get_manifest_path())?;
         let manifest = Manifest::parse()?;
         project.add_target(self, &manifest)
     }

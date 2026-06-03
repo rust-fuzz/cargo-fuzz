@@ -1,10 +1,6 @@
 use std::path::PathBuf;
 
-use crate::{
-    options::{BuildOptions, FuzzDirWrapper},
-    project::FuzzProject,
-    RunCommand,
-};
+use crate::{options::BuildOptions, project::FuzzProject, RunCommand};
 use anyhow::{bail, Result};
 use clap::Parser;
 
@@ -12,9 +8,6 @@ use clap::Parser;
 pub struct Coverage {
     #[command(flatten)]
     pub build: BuildOptions,
-
-    #[command(flatten)]
-    pub fuzz_dir_wrapper: FuzzDirWrapper,
 
     /// Sets the path to the LLVM bin directory. By default, it will use the one installed with rustc
     #[arg(long)]
@@ -48,7 +41,7 @@ impl RunCommand for Coverage {
                 see https://github.com/rust-lang/wg-cargo-std-aware/issues/63"
             );
         }
-        let project = FuzzProject::new(self.fuzz_dir_wrapper.fuzz_dir.to_owned())?;
+        let project = FuzzProject::new(self.build.fuzz_dir_wrapper.get_manifest_path())?;
         self.build.coverage = true;
         project.exec_coverage(self)
     }
