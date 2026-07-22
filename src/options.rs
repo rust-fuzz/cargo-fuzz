@@ -16,7 +16,7 @@ pub use self::{
 
 use anyhow::{bail, Error, Result};
 use clap::{Parser, ValueEnum};
-use std::{fmt as stdfmt, path::PathBuf, str::FromStr};
+use std::{fmt as stdfmt, ops::Deref, path::PathBuf, str::FromStr};
 
 #[derive(Copy, Clone, Debug, Eq, PartialEq, ValueEnum)]
 pub enum Sanitizer {
@@ -51,6 +51,17 @@ pub enum BuildMode {
 
 #[derive(Clone, Debug, Eq, PartialEq, Parser)]
 pub struct BuildOptions {
+    #[command(flatten)]
+    pub fuzz_dir_wrapper: FuzzDirWrapper,
+
+    /// Build all packages in the workspace
+    #[arg(long)]
+    pub workspace: bool,
+
+    /// Package to build (see `cargo help pkgid`)
+    #[arg(short = 'p', long = "package")]
+    pub packages: Vec<String>,
+
     /// Build artifacts in development mode, without optimizations
     #[arg(short = 'D', long, conflicts_with = "release")]
     pub dev: bool,
@@ -209,6 +220,16 @@ pub struct BuildOptions {
 
 impl stdfmt::Display for BuildOptions {
     fn fmt(&self, f: &mut stdfmt::Formatter) -> stdfmt::Result {
+        self.fuzz_dir_wrapper.fmt(f)?;
+
+        if self.workspace {
+            write!(f, " --workspace")?;
+        }
+
+        for pkg in &self.packages {
+            write!(f, " --package {}", pkg)?;
+        }
+
         if self.dev {
             write!(f, " -D")?;
         }
@@ -270,10 +291,36 @@ pub struct FuzzDirWrapper {
     pub fuzz_dir: Option<PathBuf>,
 }
 
+#[derive(Debug, Clone)]
+pub struct ManifestPath(PathBuf);
+
+impl ManifestPath {
+    pub fn new(path_buf: PathBuf) -> Self {
+        Self(path_buf)
+    }
+}
+
+impl Deref for ManifestPath {
+    type Target = PathBuf;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl FuzzDirWrapper {
+    pub fn get_manifest_path(&self) -> Option<ManifestPath> {
+        if let Some(ref fuzz_dir) = self.fuzz_dir {
+            return Some(ManifestPath(fuzz_dir.join("Cargo.toml")));
+        }
+        None
+    }
+}
+
 impl stdfmt::Display for FuzzDirWrapper {
     fn fmt(&self, f: &mut stdfmt::Formatter) -> stdfmt::Result {
         if let Some(ref elem) = self.fuzz_dir {
-            write!(f, " --fuzz-dir={}", elem.display())?;
+            write!(f, " --fuzz-dir {}", elem.display())?;
         }
 
         Ok(())
@@ -305,6 +352,9 @@ mod test {
     #[test]
     fn display_build_options() {
         let default_opts = BuildOptions {
+            fuzz_dir_wrapper: FuzzDirWrapper { fuzz_dir: None },
+            workspace: false,
+            packages: Vec::new(),
             dev: false,
             release: false,
             debug_assertions: false,
@@ -377,7 +427,29 @@ mod test {
             },
             BuildOptions {
                 coverage: false,
-                ..default_opts
+                ..default_opts.clone()
+            },
+            BuildOptions {
+                workspace: false,
+                ..default_opts.clone()
+            },
+            BuildOptions {
+                packages: vec![String::from("pkg1")],
+                ..default_opts.clone()
+            },
+            BuildOptions {
+                packages: vec![String::from("pkg1"), String::from("pkg2")],
+                ..default_opts.clone()
+            },
+            BuildOptions {
+                workspace: true,
+                packages: vec![String::from("pkg1")],
+                ..default_opts.clone()
+            },
+            BuildOptions {
+                workspace: true,
+                packages: vec![String::from("pkg1"), String::from("pkg2")],
+                ..default_opts.clone()
             },
         ];
 

@@ -1,11 +1,10 @@
-use crate::options::{self, BuildMode, BuildOptions, Sanitizer};
+use crate::options::{self, BuildMode, BuildOptions, ManifestPath, Sanitizer};
 use crate::rustc_version::RustVersion;
 use crate::utils::default_target;
 use anyhow::{anyhow, bail, Context, Result};
-use cargo_metadata::MetadataCommand;
 use rayon::prelude::*;
+use std::cmp::Ordering;
 use std::collections::HashSet;
-use std::io::Read;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::{
@@ -14,45 +13,141 @@ use std::{
     time,
 };
 
-const DEFAULT_FUZZ_DIR: &str = "fuzz";
+#[derive(Debug)]
+struct FuzzTarget {
+    target_name: String,
+}
 
+impl PartialEq for FuzzTarget {
+    fn eq(&self, other: &Self) -> bool {
+        self.cmp(other) == Ordering::Equal
+    }
+}
+
+impl Eq for FuzzTarget {}
+
+impl PartialOrd for FuzzTarget {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for FuzzTarget {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.target_name.cmp(&other.target_name)
+    }
+}
+
+#[derive(Debug, Default)]
 pub struct FuzzProject {
+    project_path: PathBuf,
     /// The project with fuzz targets
-    fuzz_dir: PathBuf,
-    targets: Vec<String>,
+    targets: Vec<FuzzTarget>,
+}
+
+enum FuzzProjectFindings {
+    NoFuzzProjectsFound,
+    FoundFuzzProjectsWithTargets(Vec<FuzzTarget>),
 }
 
 impl FuzzProject {
+    pub fn project_path(&self) -> &PathBuf {
+        &self.project_path
+    }
+
+    fn manifest_path(&self) -> ManifestPath {
+        ManifestPath::new(self.project_path().join("Cargo.toml"))
+    }
+
+    fn fuzz_dir(&self) -> &Path {
+        &self.project_path
+    }
+
+    fn collect_targets(
+        &self,
+        manifest_path: Option<&ManifestPath>,
+    ) -> Result<(ManifestPath, FuzzProjectFindings)> {
+        let mut cmd = cargo_metadata::MetadataCommand::new();
+        cmd.no_deps();
+        if let Some(manifest_path) = manifest_path {
+            cmd.manifest_path((**manifest_path).clone());
+        }
+        let metadata = cmd
+            .exec()
+            .with_context(|| "failed to query cargo metadata".to_string())?;
+
+        let manifest_path = manifest_path.map_or_else(
+            || ManifestPath::new(metadata.workspace_root.join("Cargo.toml").into()),
+            |v| v.clone(),
+        );
+
+        let mut have_fuzz_projects = false;
+        let mut res = vec![];
+        for package in metadata.packages.iter().filter(|p| is_fuzz_package(p)) {
+            have_fuzz_projects = true;
+            for target_name in package
+                .targets
+                .iter()
+                .filter(|t| t.is_bin())
+                .map(|t| t.name.to_owned())
+            {
+                res.push(FuzzTarget { target_name });
+            }
+        }
+        // Always sort them, so that we have deterministic output.
+        res.sort();
+
+        let res = if have_fuzz_projects {
+            FuzzProjectFindings::FoundFuzzProjectsWithTargets(res)
+        } else {
+            FuzzProjectFindings::NoFuzzProjectsFound
+        };
+
+        Ok((manifest_path, res))
+    }
+
     /// Creates a new instance.
     //
     /// Find an existing `cargo fuzz` project by starting at the current
     /// directory and walking up the filesystem.
-    ///
-    /// If `fuzz_dir_opt` is `None`, returns a new instance with the default fuzz project
-    /// path.
-    pub fn new(fuzz_dir_opt: Option<PathBuf>) -> Result<Self> {
-        let mut project = Self::manage_initial_instance(fuzz_dir_opt)?;
-        let manifest = project.manifest()?;
-        if !is_fuzz_manifest(&manifest) {
+    pub fn new(initial_manifest_path: Option<ManifestPath>) -> Result<Self> {
+        let mut project = Self::default();
+        let (manifest_path, res) = project.collect_targets(initial_manifest_path.as_ref())?;
+        project.project_path = manifest_path.parent().unwrap().to_path_buf();
+        if let FuzzProjectFindings::FoundFuzzProjectsWithTargets(targets) = res {
+            project.targets = targets;
+            return Ok(project);
+        };
+        assert!(matches!(res, FuzzProjectFindings::NoFuzzProjectsFound));
+        if let Some(manifest_path) = &initial_manifest_path {
             bail!(
-                "manifest `{}` does not look like a cargo-fuzz manifest. \
-                 Add following lines to override:\n\
-                 [package.metadata]\n\
-                 cargo-fuzz = true",
-                project.manifest_path().display()
+                "no fuzz projects found in specified manifest-path: {:?}",
+                **manifest_path
             );
         }
-        project.targets = collect_targets(&manifest);
-        Ok(project)
+        let manifest_path = ManifestPath::new(project.project_path.join("fuzz").join("Cargo.toml"));
+        let (manifest_path, res) = project.collect_targets(Some(&manifest_path))?;
+        project.project_path = manifest_path.parent().unwrap().to_path_buf();
+        if let FuzzProjectFindings::FoundFuzzProjectsWithTargets(targets) = res {
+            project.targets = targets;
+            return Ok(project);
+        };
+        assert!(matches!(res, FuzzProjectFindings::NoFuzzProjectsFound));
+        bail!("no fuzz projects found");
     }
 
     /// Creates the fuzz project structure and returns a new instance.
     ///
     /// This will not clone libfuzzer-sys.
     /// Similar to `FuzzProject::new`, the fuzz directory will depend on `fuzz_dir_opt`.
-    pub fn init(init: &options::Init, fuzz_dir_opt: Option<PathBuf>) -> Result<Self> {
-        let project = Self::manage_initial_instance(fuzz_dir_opt)?;
-        let fuzz_project = project.fuzz_dir();
+    pub fn init(manifest_path: ManifestPath, init: &options::Init) -> Result<Self> {
+        let fuzz_project = manifest_path.parent().unwrap();
+
+        let project = FuzzProject {
+            project_path: fuzz_project.to_path_buf(),
+            ..Default::default()
+        };
+
         let manifest = Manifest::parse()?;
 
         // TODO: check if the project is already initialized
@@ -96,7 +191,7 @@ impl FuzzProject {
 
     pub fn list_targets(&self) -> Result<()> {
         for bin in &self.targets {
-            println!("{}", bin);
+            println!("{}", bin.target_name);
         }
         Ok(())
     }
@@ -130,18 +225,22 @@ impl FuzzProject {
 
         let mut cargo = fs::OpenOptions::new()
             .append(true)
-            .open(self.manifest_path())?;
+            .open(self.project_path().join("Cargo.toml"))?;
         Ok(cargo.write_fmt(toml_bin_template!(target))?)
     }
 
     fn cargo(&self, subcommand: &str, build: &BuildOptions) -> Result<Command> {
         let mut cmd = Command::new("cargo");
-        cmd.arg(subcommand)
-            .arg("--manifest-path")
-            .arg(self.manifest_path())
-            // --target=<TARGET> won't pass rustflags to build scripts
-            .arg("--target")
-            .arg(&build.triple);
+        cmd.arg(subcommand);
+        cmd.arg("--manifest-path").arg(&**self.manifest_path());
+        if build.workspace {
+            cmd.arg("--workspace");
+        }
+        for pkg in &build.packages {
+            cmd.args(["--package", pkg]);
+        }
+        // --target=<TARGET> won't pass rustflags to build scripts
+        cmd.arg("--target").arg(&build.triple);
         // we default to release mode unless debug mode is explicitly requested
         if !build.dev {
             // Note: setting `debug` doesn't only affect `-Cdebuginfo`. It also
@@ -384,6 +483,25 @@ impl FuzzProject {
         let mut cmd = self.cargo(cargo_subcommand, build)?;
 
         if let Some(fuzz_target) = fuzz_target {
+            if self
+                .targets
+                .iter()
+                .find(|t| *t.target_name == *fuzz_target)
+                .is_none()
+            {
+                let mut str = format!(
+                    concat!(
+                        "no fuzz target named `{}` in packages\n",
+                        "help: available fuzz targets:\n"
+                    ),
+                    fuzz_target
+                );
+                for bin in &self.targets {
+                    str.push('\t');
+                    str.push_str(&bin.target_name);
+                }
+                bail!(str);
+            }
             cmd.arg("--bin").arg(fuzz_target);
         } else {
             cmd.arg("--bins");
@@ -443,6 +561,7 @@ impl FuzzProject {
 
     fn run_fuzz_target_debug_formatter(
         &self,
+
         build: &BuildOptions,
         target: &str,
         artifact: &Path,
@@ -572,22 +691,14 @@ impl FuzzProject {
                 eprintln!();
             }
 
-            let fuzz_dir = if self.fuzz_dir_is_default_path() {
-                String::new()
-            } else {
-                format!(" --fuzz-dir {}", self.fuzz_dir().display())
-            };
-
             eprintln!(
-                "Reproduce with:\n\n\tcargo fuzz run{fuzz_dir}{options} {target} {artifact}\n",
-                fuzz_dir = &fuzz_dir,
+                "Reproduce with:\n\n\tcargo fuzz run{options} {target} {artifact}\n",
                 options = &run.build,
                 target = &run.target,
                 artifact = artifact.display()
             );
             eprintln!(
-                "Minimize test case with:\n\n\tcargo fuzz tmin{fuzz_dir}{options} {target} {artifact}\n",
-                fuzz_dir = &fuzz_dir,
+                "Minimize test case with:\n\n\tcargo fuzz tmin{options} {target} {artifact}\n",
                 options = &run.build,
                 target = &run.target,
                 artifact = artifact.display()
@@ -663,15 +774,8 @@ impl FuzzProject {
                 eprintln!();
             }
 
-            let fuzz_dir = if self.fuzz_dir_is_default_path() {
-                String::new()
-            } else {
-                format!(" --fuzz-dir {}", self.fuzz_dir().display())
-            };
-
             eprintln!(
-                "Reproduce with:\n\n\tcargo fuzz run{fuzz_dir}{options} {target} {artifact}\n",
-                fuzz_dir = &fuzz_dir,
+                "Reproduce with:\n\n\tcargo fuzz run{options} {target} {artifact}\n",
                 options = &tmin.build,
                 target = &tmin.target,
                 artifact = artifact.display()
@@ -992,14 +1096,6 @@ impl FuzzProject {
         }
     }
 
-    pub(crate) fn fuzz_dir(&self) -> &Path {
-        &self.fuzz_dir
-    }
-
-    fn manifest_path(&self) -> PathBuf {
-        self.fuzz_dir().join("Cargo.toml")
-    }
-
     /// Returns paths to the `coverage/<target>/raw` directory and `coverage/<target>/coverage.profdata` file.
     fn coverage_for(&self, target: &str) -> Result<(PathBuf, PathBuf)> {
         let mut coverage_data = self.fuzz_dir().to_owned();
@@ -1039,7 +1135,7 @@ impl FuzzProject {
     }
 
     fn fuzz_targets_dir(&self) -> PathBuf {
-        let mut root = self.fuzz_dir().to_owned();
+        let mut root = self.project_path().to_owned();
         if root.join(crate::FUZZ_TARGETS_DIR_OLD).exists() {
             println!(
                 "warning: The `fuzz/fuzzers/` directory has renamed to `fuzz/fuzz_targets/`. \
@@ -1058,38 +1154,6 @@ impl FuzzProject {
         root.push(target);
         root.set_extension("rs");
         root
-    }
-
-    fn manifest(&self) -> Result<toml::Value> {
-        let filename = self.manifest_path();
-        let mut file = fs::File::open(&filename)
-            .with_context(|| format!("could not read the manifest file: {}", filename.display()))?;
-        let mut data = Vec::new();
-        file.read_to_end(&mut data)?;
-        toml::from_slice(&data).with_context(|| {
-            format!(
-                "could not decode the manifest file at {}",
-                filename.display()
-            )
-        })
-    }
-
-    // If `fuzz_dir_opt` is `None`, returns a new instance with the default fuzz project
-    // path. Otherwise, returns a new instance with the inner content of `fuzz_dir_opt`.
-    fn manage_initial_instance(fuzz_dir_opt: Option<PathBuf>) -> Result<Self> {
-        let fuzz_dir = if let Some(el) = fuzz_dir_opt {
-            el
-        } else {
-            find_package()?.join(DEFAULT_FUZZ_DIR)
-        };
-        Ok(FuzzProject {
-            fuzz_dir,
-            targets: Vec::new(),
-        })
-    }
-
-    fn fuzz_dir_is_default_path(&self) -> bool {
-        self.fuzz_dir.ends_with(DEFAULT_FUZZ_DIR)
     }
 }
 
@@ -1110,28 +1174,6 @@ fn rustlib() -> Result<PathBuf> {
     Ok(pathbuf)
 }
 
-fn collect_targets(value: &toml::Value) -> Vec<String> {
-    let bins = value
-        .as_table()
-        .and_then(|v| v.get("bin"))
-        .and_then(toml::Value::as_array);
-    let mut bins = if let Some(bins) = bins {
-        bins.iter()
-            .map(|bin| {
-                bin.as_table()
-                    .and_then(|v| v.get("name"))
-                    .and_then(toml::Value::as_str)
-            })
-            .filter_map(|name| name.map(String::from))
-            .collect()
-    } else {
-        Vec::new()
-    };
-    // Always sort them, so that we have deterministic output.
-    bins.sort();
-    bins
-}
-
 pub struct Manifest {
     crate_name: String,
     edition: Option<String>,
@@ -1139,7 +1181,7 @@ pub struct Manifest {
 
 impl Manifest {
     pub fn parse() -> Result<Self> {
-        let metadata = MetadataCommand::new().no_deps().exec()?;
+        let metadata = cargo_metadata::MetadataCommand::new().no_deps().exec()?;
         let package = metadata.packages.first().with_context(|| {
             anyhow!(
                 "Expected to find at least one package in {}",
@@ -1156,47 +1198,14 @@ impl Manifest {
     }
 }
 
-fn is_fuzz_manifest(value: &toml::Value) -> bool {
-    let is_fuzz = value
-        .as_table()
-        .and_then(|v| v.get("package"))
-        .and_then(toml::Value::as_table)
-        .and_then(|v| v.get("metadata"))
-        .and_then(toml::Value::as_table)
-        .and_then(|v| v.get("cargo-fuzz"))
-        .and_then(toml::Value::as_bool);
-    is_fuzz == Some(true)
-}
+fn is_fuzz_package(package: &cargo_metadata::Package) -> bool {
+    let is_fuzz = package
+        .metadata
+        .as_object()
+        .and_then(|v| v.get_key_value("cargo-fuzz"))
+        .and_then(|v| v.1.as_bool());
 
-/// Returns the path for the first found non-fuzz Cargo package
-fn find_package() -> Result<PathBuf> {
-    let mut dir = env::current_dir()?;
-    let mut data = Vec::new();
-    loop {
-        let manifest_path = dir.join("Cargo.toml");
-        match fs::File::open(&manifest_path) {
-            Err(_) => {}
-            Ok(mut f) => {
-                data.clear();
-                f.read_to_end(&mut data)
-                    .with_context(|| format!("failed to read {}", manifest_path.display()))?;
-                let value: toml::Value = toml::from_slice(&data).with_context(|| {
-                    format!(
-                        "could not decode the manifest file at {}",
-                        manifest_path.display()
-                    )
-                })?;
-                if !is_fuzz_manifest(&value) {
-                    // Not a cargo-fuzz project => must be a proper cargo project :)
-                    return Ok(dir);
-                }
-            }
-        }
-        if !dir.pop() {
-            break;
-        }
-    }
-    bail!("could not find a cargo project")
+    is_fuzz == Some(true)
 }
 
 fn strip_current_dir_prefix(path: &Path) -> &Path {
