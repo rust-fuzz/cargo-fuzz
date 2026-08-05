@@ -79,7 +79,8 @@ pub struct BuildOptions {
     #[arg(long)]
     pub features: Option<String>,
 
-    /// Use a specific sanitizer
+    /// Use a specific sanitizer. `none` disables sanitizer checks and can work
+    /// on stable as long as no other nightly-only options are enabled.
     #[arg(short, long, value_enum, default_value = "address")]
     pub sanitizer: Sanitizer,
 
